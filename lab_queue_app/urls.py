@@ -20,4 +20,5 @@ urlpatterns = [
     path('mark-served/<int:work_id>/', views.mark_served, name='mark_served'),
     path('cancel-served/<int:work_id>/', views.cancel_served, name='cancel_served'),
     path('leave-queue/<int:work_id>/', views.leave_queue, name='leave_queue'),
+    path('check-work-status/', views.check_work_status, name='check_work_status'),
 ]

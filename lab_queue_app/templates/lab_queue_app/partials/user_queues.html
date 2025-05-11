@@ -1,0 +1,29 @@
+<div id="user-queues">
+    {% if user_works %}
+        <ul class="queues-list">
+            {% for entry in user_works %}
+                <li class="queue-item" data-work-id="{{ entry.work.practical_work.id }}">
+                    <div>
+                        {{ entry.work.practical_work.subject.name }} - Лаба {{ entry.work.practical_work.sequence_number }} - 
+                        Позиция: {{ entry.work.list_position }} - 
+                        {% if entry.is_running %}
+                            Пара идёт
+                        {% else %}
+                            {% if entry.next_date %}
+                                {{ entry.next_date }}
+                            {% else %}
+                                Нет расписания
+                            {% endif %}
+                        {% endif %}
+                        ({{ entry.status_text }})
+                        <button class="leave-queue-btn" onclick="openLeaveModal({{ entry.work.practical_work.id }}, '{{ entry.work.practical_work.sequence_number }} {{ entry.work.practical_work.name }}')">
+                            Выйти из очереди
+                        </button>
+                    </div>
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p>Вы не записаны в очереди.</p>
+    {% endif %}
+</div>

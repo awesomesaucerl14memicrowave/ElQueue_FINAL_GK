@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'lab_queue_app',
+    'captcha',
 ]
 
 MIDDLEWARE = [
@@ -142,3 +143,10 @@ DEFAULT_FROM_EMAIL = 'budanov.kirill.83@gmail.com'
 
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 SESSION_COOKIE_AGE = 1209600
+
+
+# ReCAPTCHA v3
+RECAPTCHA_PUBLIC_KEY = '6Ld7pTUrAAAAAFrVLFWzdWZeBznykViTZ1HyMwiW'
+RECAPTCHA_PRIVATE_KEY = '6Ld7pTUrAAAAAN64o3PFOgmQU-qzDGml1PDSae5-'
+RECAPTCHA_REQUIRED_SCORE = 0.85  # Порог доверия (0.5-1.0)
+RECAPTCHA_DOMAIN = 'www.google.com'

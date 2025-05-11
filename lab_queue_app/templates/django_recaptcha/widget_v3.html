@@ -1,0 +1,13 @@
+<script src="https://www.google.com/recaptcha/api.js?render={{ public_key }}"></script>
+<script>
+    grecaptcha.ready(function() {
+        document.getElementById('{{ widget.attrs.id }}').form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            grecaptcha.execute('{{ public_key }}', {action: '{{ widget.action }}'}).then(function(token) {
+                document.getElementById('{{ widget.attrs.id }}').value = token;
+                e.target.submit();
+            });
+        });
+    });
+</script>
+<input type="hidden" id="{{ widget.attrs.id }}" name="{{ widget.name }}">

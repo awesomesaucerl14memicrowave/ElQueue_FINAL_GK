@@ -1,0 +1,22 @@
+<div id="queue-cards">
+    {% if queue_cards %}
+        {% for card in queue_cards %}
+            {% if card.no_available_works %}
+                <div class="queue-card" data-subject-id="{{ card.subject.id }}">
+                    <h4>{{ card.subject.name }}</h4>
+                    <p>Все лабораторные работы уже сданы.</p>
+                </div>
+            {% else %}
+                <div class="queue-card" data-subject-id="{{ card.subject.id }}">
+                    <h4>{{ card.subject.name }}</h4>
+                    <p>Следующая лаба: {{ card.first_work_seq }} - {{ card.first_work_name }}</p>
+                    <button class="join-queue-btn" onclick="openJoinModal({{ card.first_work_id }}, '{{ card.first_work_seq }} {{ card.first_work_name }}', '{{ card.available_works|join:', '|escapejs }}')">
+                        Встать в очередь
+                    </button>
+                </div>
+            {% endif %}
+        {% endfor %}
+    {% else %}
+        <p>Нет доступных предметов для записи в очередь.</p>
+    {% endif %}
+</div>

@@ -1,6 +1,248 @@
 {% extends 'lab_queue_app/base.html' %}
+{% load static %}
+{% load custom_filters %}  <!-- Подключаем кастомные фильтры, если есть -->
+
 {% block title %}Главная{% endblock %}
+
 {% block content %}
     <h2>Список очередей</h2>
     <p>Здесь будут отображаться доступные очереди.</p>
+    <!-- Вставляем секцию "Встать в очередь" -->
+    {% include 'lab_queue_app/partials/queue_cards.html' %}
+
+    <!-- Раздел: Активные очереди -->
+    <h2>Активные очереди</h2>
+    <div id="user-queues">
+        {% if user_works %}
+            <ul class="queues-list">
+                {% for entry in user_works %}
+                    <li class="queue-item" data-work-id="{{ entry.work.practical_work.id }}">
+                        <div>
+                            {{ entry.work.practical_work.subject.name }} - Лаба {{ entry.work.practical_work.sequence_number }} - 
+                            Позиция: {{ entry.work.list_position }} - 
+                            {% if entry.is_running %}
+                                Пара идёт
+                            {% else %}
+                                {% if entry.next_date %}
+                                    {{ entry.next_date }}
+                                {% else %}
+                                    Нет расписания
+                                {% endif %}
+                            {% endif %}
+                            ({{ entry.status_text }})
+                            <button class="leave-queue-btn" onclick="openLeaveModal({{ entry.work.practical_work.id }}, '{{ entry.work.practical_work.sequence_number }} {{ entry.work.practical_work.name }}')">
+                                Выйти из очереди
+                            </button>
+                        </div>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>У вас нет активных очередей.</p>
+        {% endif %}
+    </div>
+
+    <!-- Модальное окно для вставания в очередь -->
+    <div id="joinModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5);">
+        <div style="background:white; padding:20px; margin:15% auto; width:300px; border-radius:5px;">
+            <h3>Подтверждение</h3>
+            <form id="joinForm" method="post">
+                {% csrf_token %}
+                <p>Выберите лабораторную работу:</p>
+                <select name="work_id" id="joinWorkId" required>
+                    <option value="" disabled selected>Выберите лабу</option>
+                </select>
+                <label><input type="checkbox" name="is_hurry" id="isHurry"> Я тороплюсь</label>
+                <br>
+                <button type="submit" class="join-submit-btn">Подтвердить</button>
+                <button type="button" onclick="closeJoinModal()">Отмена</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модальное окно для выхода из очереди -->
+    <div id="leaveModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5);">
+        <div style="background:white; padding:20px; margin:15% auto; width:300px; border-radius:5px;">
+            <h3>Подтверждение выхода</h3>
+            <form id="leaveForm" method="post">
+                {% csrf_token %}
+                <p>Вы выходите из очереди на лабу: <span id="leaveLabName"></span></p>
+                <input type="hidden" name="work_id" id="leaveWorkId">
+                <label><input type="checkbox" name="has_passed" checked> Я сдал лабу</label>
+                <br>
+                <button type="submit" class="leave-submit-btn">Подтвердить</button>
+                <button type="button" onclick="closeLeaveModal()">Отмена</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Функции для модальных окон
+        async function openJoinModal(workId, defaultLabName, availableWorks) {
+            document.getElementById('joinModal').style.display = 'block';
+            const select = document.getElementById('joinWorkId');
+            select.innerHTML = '<option value="" disabled selected>Выберите лабу</option>';
+            const works = availableWorks.split(', ').map(workStr => {
+                const [id, seqNum, name] = workStr.split('|').map(s => s.trim());
+                return { id: id, name: `${seqNum} | ${name}`, sequence_number: parseInt(seqNum) };
+            });
+
+            // Проверяем статус каждой работы на сервере
+            const unsurrenderedWorks = [];
+            for (const work of works) {
+                const response = await fetch('/check-work-status/', {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: new FormData(document.createElement('form')).append('work_id', work.id)
+                });
+                const data = await response.json();
+                if (data.success && !data.is_served) {
+                    unsurrenderedWorks.push(work);
+                }
+            }
+
+            if (unsurrenderedWorks.length === 0) {
+                alert('Все лабораторные работы по этому предмету уже сданы.');
+                closeJoinModal();
+                showToast('Нет доступных лабораторных работ для записи.', 3000);
+                return;
+            }
+
+            // Сортируем несданные работы по sequence_number и выбираем первую
+            const firstAvailableWork = unsurrenderedWorks.sort((a, b) => a.sequence_number - b.sequence_number)[0];
+
+            unsurrenderedWorks.forEach(work => {
+                const option = document.createElement('option');
+                option.value = work.id;
+                option.text = work.name;
+                if (work.id == workId || (firstAvailableWork && work.id == firstAvailableWork.id)) {
+                    option.selected = true;
+                }
+                select.appendChild(option);
+            });
+            document.getElementById('joinForm').action = "{% url 'join_queue' 0 %}".replace('0', workId);
+        }
+
+        function closeJoinModal() {
+            document.getElementById('joinModal').style.display = 'none';
+            document.getElementById('isHurry').checked = false;
+        }
+
+        function openLeaveModal(workId, labName) {
+            document.getElementById('leaveModal').style.display = 'block';
+            document.getElementById('leaveLabName').innerText = labName;
+            document.getElementById('leaveWorkId').value = workId;
+            document.getElementById('leaveForm').action = "{% url 'leave_queue' 0 %}".replace('0', workId);
+            const hasPassedCheckbox = document.querySelector('#leaveForm [name="has_passed"]');
+            hasPassedCheckbox.checked = true;
+        }
+
+        function closeLeaveModal() {
+            document.getElementById('leaveModal').style.display = 'none';
+        }
+
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        function showToast(message, duration) {
+            const toast = document.createElement('div');
+            toast.style.cssText = 'position: fixed; bottom: 20px; right: 20px; background: #333; color: white; padding: 10px 20px; border-radius: 5px; z-index: 1000;';
+            toast.innerText = message;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.remove();
+            }, duration);
+        }
+
+        document.addEventListener('submit', function(e) {
+            const form = e.target;
+            if (form.classList.contains('mark-served-form') || 
+                form.classList.contains('cancel-served-form') || 
+                form.querySelector('.join-submit-btn') || 
+                form.querySelector('.leave-submit-btn')) {
+                e.preventDefault();
+                fetch(form.action, {
+                    method: 'POST',
+                    body: new FormData(form),
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        if (form.querySelector('.join-submit-btn')) {
+                            fetchCabinetSection('queues');
+                            fetchCabinetSection('queue-cards');
+                        } else if (form.querySelector('.leave-submit-btn')) {
+                            fetchCabinetSection('queues');
+                            fetchCabinetSection('queue-cards');
+                        }
+                        closeJoinModal();
+                        closeLeaveModal();
+                        showToast(data.message || 'Действие выполнено!', 3000);
+                    } else {
+                        alert('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
+                    }
+                })
+                .catch(error => {
+                    alert('Ошибка сети: ' + error);
+                });
+            }
+        });
+
+        function fetchCabinetSection(section, workId = null) {
+            const url = '/cabinet/?section=' + section + (workId ? '&work_id=' + workId : '');
+            fetch(url, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.text())
+            .then(html => {
+                if (section === 'subjects' && workId) {
+                    const workItem = document.querySelector(`.work-item[data-work-id="${workId}"]`);
+                    if (workItem) {
+                        const tempDiv = document.createElement('div');
+                        tempDiv.innerHTML = html;
+                        const newWorkItem = tempDiv.querySelector('.work-item') || tempDiv;
+                        workItem.innerHTML = newWorkItem.innerHTML;
+                    }
+                } else if (section === 'subjects') {
+                    const subjectsSection = document.getElementById('subjects-section');
+                    if (subjectsSection) {
+                        subjectsSection.innerHTML = html;
+                    }
+                } else if (section === 'queues') {
+                    const userQueues = document.getElementById('user-queues');
+                    if (userQueues) {
+                        userQueues.innerHTML = html;
+                    }
+                } else if (section === 'queue-cards') {
+                    const queueCards = document.getElementById('queue-cards');
+                    if (queueCards) {
+                        queueCards.innerHTML = html;
+                    }
+                }
+            })
+            .catch(error => {
+                alert('Ошибка при загрузке: ' + error);
+            });
+        }
+    </script>
 {% endblock %}

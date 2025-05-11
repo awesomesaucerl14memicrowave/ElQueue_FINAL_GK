@@ -42,7 +42,7 @@ class PracticalWork(models.Model):
     name = models.CharField(max_length=100)
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
     ekurs_link = models.URLField(blank=True, null=True)
-    sequence_number = models.IntegerField(unique=True)
+    sequence_number = models.IntegerField(unique=False)
 
     def __str__(self):
         return f"{self.name} (Subject: {self.subject.name})"

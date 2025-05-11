@@ -15,112 +15,227 @@ import logging
 from django.utils import timezone
 from django.core.cache import cache
 from .queue_utils import join_queue_util, leave_queue_util
-
+from .schedule_utils import get_schedule_info
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
+@login_required
 def index(request):
-    return render(request, 'lab_queue_app/index.html')
+    """Главная страница: отображает секцию 'Встать в очередь'."""
+    context = get_cabinet_data(request)
+    return render(request, 'lab_queue_app/index.html', context)
 
 @login_required
 def cabinet(request):
-    print("Cabinet - Request user:", request.user, type(request.user))  # Отладка
-    # Проверяем, выбрана ли учебная группа
-    user_study_groups = UserStudyGroup.objects.filter(user=request.user)  # Вернули user
-    if not user_study_groups.exists():
-        return render(request, 'lab_queue_app/cabinet.html', {
-            'no_study_group': True,
-            'profile': request.user.profile
-        })
+    section = request.GET.get('section')
+    work_id = request.GET.get('work_id')
 
-    # Получаем данные
+    if section:
+        if section == 'subjects' and work_id:
+            user_study_groups = UserStudyGroup.objects.filter(user=request.user)
+            if not user_study_groups.exists():
+                return JsonResponse({'error': 'No study group selected'})
+            study_group = user_study_groups.first().study_group
+            subjects = Subject.objects.filter(studygroupsubject__study_group=study_group)
+            for subject in subjects:
+                for work in PracticalWork.objects.filter(subject=subject):
+                    if str(work.id) == work_id:
+                        participant = WaitingListParticipant.objects.filter(user=request.user, practical_work=work).first()
+                        is_served = participant and participant.status == 'served' if participant else False
+                        served_works = WaitingListParticipant.objects.filter(
+                            user=request.user, practical_work__subject=subject, status='served'
+                        ).values_list('practical_work_id', flat=True)
+                        available_works = PracticalWork.objects.filter(subject=subject).exclude(id__in=served_works)
+                        available_works_str = ', '.join(['{}|{}|{}'.format(w.id, w.sequence_number, w.name) for w in available_works])
+                        return render(request, 'lab_queue_app/partials/work_item.html', {
+                            'work': work,
+                            'is_served': is_served,
+                            'participant': participant,
+                            'available_works_str': available_works_str
+                        })
+        elif section == 'subjects':
+            context = get_cabinet_data(request)
+            return render(request, 'lab_queue_app/partials/subjects_section.html', context)
+        elif section == 'queues':
+            context = get_cabinet_data(request)
+            return render(request, 'lab_queue_app/partials/user_queues.html', context)
+        elif section == 'queue-cards':
+            context = get_cabinet_data(request)
+            return render(request, 'lab_queue_app/partials/queue_cards.html', context)
+        return JsonResponse({'error': 'Invalid section'})
+
+    context = get_cabinet_data(request)
+    return render(request, 'lab_queue_app/cabinet.html', context)
+
+def get_cabinet_data(request):
+    """Вспомогательная функция для подготовки данных кабинета."""
+    user_study_groups = UserStudyGroup.objects.filter(user=request.user)
+    if not user_study_groups.exists():
+        return {'no_study_group': True, 'profile': request.user.profile}
+
     study_group = user_study_groups.first().study_group
     subjects = Subject.objects.filter(studygroupsubject__study_group=study_group)
-    practical_works = PracticalWork.objects.filter(subject__in=subjects)
     
-    # Активные очереди пользователя
-    user_works = WaitingListParticipant.objects.filter(user=request.user, status='active')  # Вернули user
+    slots = Schedule.objects.filter(subject__studygroupsubject__study_group=study_group)
+    schedule_info_dict = {slot.subject.id: get_schedule_info(slot) for slot in slots}
+
+    subjects_with_works = []
+    for subject in subjects:
+        practical_works = PracticalWork.objects.filter(subject=subject).order_by('sequence_number')
+        total_works = practical_works.count()
+        works_with_status = []
+        for work in practical_works:
+            participant = WaitingListParticipant.objects.filter(user=request.user, practical_work=work).first()
+            is_served = participant and participant.status == 'served' if participant else False
+            served_works = WaitingListParticipant.objects.filter(
+                user=request.user, practical_work__subject=subject, status='served'
+            ).values_list('practical_work_id', flat=True)
+            available_works = practical_works.exclude(id__in=served_works)
+            available_works_str = ', '.join(['{}|{}|{}'.format(w.id, w.sequence_number, w.name) for w in available_works])
+            works_with_status.append({
+                'work': work,
+                'is_served': is_served,
+                'participant': participant,
+                'available_works_str': available_works_str
+            })
+        served_count = WaitingListParticipant.objects.filter(
+            user=request.user, practical_work__subject=subject, status='served'
+        ).count()
+        print(f"Subject: {subject.name}, Served: {served_count}, Total: {total_works}")  # Уже есть
+        schedule_info = schedule_info_dict.get(subject.id, {
+            'schedule_text': 'Нет расписания',
+            'next_date': '',
+            'is_running': False
+        })
+        # Отладка: убедимся, что данные передаются
+        subject_data = {
+            'subject': subject,
+            'works': works_with_status,
+            'schedule_text': schedule_info['schedule_text'],
+            'next_date': schedule_info['next_date'],
+            'is_running': schedule_info['is_running'],
+            'served_count': served_count,
+            'total_works': total_works,
+        }
+        print(f"Передаём в шаблон для {subject.name}: served_count={subject_data['served_count']}, total_works={subject_data['total_works']}")
+        subjects_with_works.append(subject_data)
+
+    # Формируем активные очереди
+    user_works = WaitingListParticipant.objects.filter(user=request.user, status='active')
     user_work_subjects = set(work.practical_work.subject_id for work in user_works)
     
-    # Карточки вставания в очередь (по предметам, где пользователь не в очереди)
+    # Формируем карточки для вставания в очередь
     queue_cards = []
     for subject in subjects:
         if subject.id not in user_work_subjects:
             practical_works_for_subject = PracticalWork.objects.filter(subject=subject).order_by('sequence_number')
             served_works = WaitingListParticipant.objects.filter(
-                user=request.user, practical_work__subject=subject, status='served'  # Вернули user
+                user=request.user, practical_work__subject=subject, status='served'
             ).values_list('practical_work_id', flat=True)
             available_works = practical_works_for_subject.exclude(id__in=served_works)
             if available_works.exists():
                 first_work = available_works.first()
                 queue_cards.append({
                     'subject': subject,
-                    'available_works': ['{} | {} | {}'.format(work.id, work.sequence_number, work.name) for work in available_works],
+                    'available_works': ['{} | {} | {}'.format(work.id, work.sequence_number, w.name) for w in available_works],
                     'first_work_id': first_work.id,
                     'first_work_seq': first_work.sequence_number,
                     'first_work_name': first_work.name,
                 })
+            else:
+                queue_cards.append({
+                    'subject': subject,
+                    'no_available_works': True
+                })
 
-    # Добавляем доступные лабы для "Мои предметы"
-    practical_works_with_status = []
-    for work in practical_works:
-        participant = WaitingListParticipant.objects.filter(user=request.user, practical_work=work).first()  # Вернули user
-        is_served = participant and participant.status == 'served'
-        subject_works = PracticalWork.objects.filter(subject=work.subject).order_by('sequence_number')
-        served_works = WaitingListParticipant.objects.filter(
-            user=request.user, practical_work__subject=work.subject, status='served'  # Вернули user
-        ).values_list('practical_work_id', flat=True)
-        available_works = subject_works.exclude(id__in=served_works)
-        practical_works_with_status.append({
-            'work': work,
-            'is_served': is_served,
-            'participant': participant,
-            'available_works': ['{} | {} | {}'.format(w.id, w.sequence_number, w.name) for w in available_works]
-        })
-
-    # Расписание
-    slots = Schedule.objects.filter(subject__studygroupsubject__study_group=study_group)
-    enriched_slots_dict = {}
-    for slot in slots:
-        start_time = datetime.combine(datetime.today(), slot.start_time)
-        duration_minutes = slot.duration
-        end_time = start_time + timedelta(minutes=duration_minutes)
-        is_running = start_time <= datetime.now() <= end_time
-        enriched_slots_dict[slot.subject.id] = {
-            'subject': slot.subject,
-            'weekday': slot.weekday,
-            'week_type': slot.week_type,
-            'start_time': slot.start_time,
-            'end_time': end_time.strftime("%H:%M"),
-            'duration': slot.duration,
-            'is_running': is_running,
-            'start_datetime': start_time
-        }
-
-    # Обогащаем user_works слотами
+    # Обогащаем user_works для отображения расписания
     enriched_user_works = []
     for work in user_works:
-        slot_data = enriched_slots_dict.get(work.practical_work.subject_id, {})
-        status_text = "Пара не идёт"
-        if work.list_position == 1:
-            status_text = "Первый в очереди"
-        elif slot_data.get('is_running', False):
-            status_text = "Пара идёт"
+        subject_id = work.practical_work.subject_id
+        schedule_info = schedule_info_dict.get(subject_id, {
+            'schedule_text': 'Нет расписания',
+            'next_date': '',
+            'is_running': False
+        })
+        status_text = "Пара идёт" if schedule_info['is_running'] else schedule_info['next_date'] or "Пара не идёт"
         enriched_user_works.append({
             'work': work,
-            'slot': slot_data,
-            'status_text': status_text
+            'status_text': status_text,
+            'is_running': schedule_info['is_running'],
+            'next_date': schedule_info['next_date']
         })
 
-    return render(request, 'lab_queue_app/cabinet.html', {
+    return {
         'profile': request.user.profile,
         'study_group': study_group,
-        'subjects': subjects,
-        'practical_works_with_status': practical_works_with_status,
+        'subjects_with_works': subjects_with_works,
         'user_works': enriched_user_works,
-        'slots': enriched_slots_dict.values(),
         'queue_cards': queue_cards,
-    })
+    }
+
+def get_schedule_info(slot):
+    """Получает информацию о расписании для предмета."""
+    from datetime import datetime, timedelta
+    current_datetime = datetime.now()
+    current_time = current_datetime.time()
+    current_weekday = current_datetime.weekday()  # 0 - Понедельник, 6 - Воскресенье
+
+    # Определение целевого дня недели
+    target_weekday = slot.weekday.order - 1  # Преобразуем 1-7 в 0-6
+    if target_weekday < 0 or target_weekday > 6:
+        target_weekday = 0
+
+    start_time = slot.start_time
+    end_time = (datetime.combine(current_datetime.date(), start_time) + timedelta(minutes=slot.duration)).time()
+
+    # Проверка, идёт ли пара сейчас
+    is_running = (
+        target_weekday == current_weekday and
+        start_time <= current_time <= end_time
+    )
+
+    # Формирование текста расписания
+    schedule_text = f"{slot.weekday.name} {start_time.strftime('%H:%M')} - {end_time.strftime('%H:%M')} ({slot.week_type})"
+
+    # Расчет следующей даты
+    next_date = None
+    if not is_running:
+        days_ahead = (target_weekday - current_weekday) % 7
+        if days_ahead == 0 and current_time > end_time:
+            days_ahead = 7
+
+        next_date_base = current_datetime.date() + timedelta(days=days_ahead)
+
+        # Функция для определения начала учебного года
+        def get_academic_year_start(date):
+            return datetime(date.year - (1 if date.month < 9 else 0), 9, 1).date()
+
+        september_first = get_academic_year_start(next_date_base)
+        delta_days = (next_date_base - september_first).days
+        academic_week_number = (delta_days // 7) + 1 if delta_days >= 0 else 0
+
+        # Корректировка недели
+        week_diff = 0
+        if slot.week_type == 'even' and academic_week_number % 2 != 0:
+            week_diff = 7
+        elif slot.week_type == 'odd' and academic_week_number % 2 == 0:
+            week_diff = 7
+
+        next_date = next_date_base + timedelta(days=week_diff)
+        next_date = datetime.combine(next_date, start_time)
+
+        # Дополнительная проверка, если дата всё ещё в прошлом
+        if next_date <= current_datetime:
+            next_date += timedelta(days=7)
+
+        next_date = next_date.strftime('%d.%m.%Y')
+
+    return {
+        'schedule_text': schedule_text,
+        'next_date': next_date,
+        'is_running': is_running
+    }
 
 @login_required
 def settings(request):
@@ -178,28 +293,21 @@ def settings(request):
 
 def register_username_password(request):
     if request.method == 'POST':
-        username = request.POST.get('username')
-        password1 = request.POST.get('password1')
-        password2 = request.POST.get('password2')
-
-        if User.objects.filter(username=username).exists():
-            return render(request, 'lab_queue_app/register_username_password.html',
-                          {'error': 'Пользователь с таким именем уже существует.'})
-
-        if password1 != password2:
-            return render(request, 'lab_queue_app/register_username_password.html', {'error': 'Пароли не совпадают.'})
-
-        if len(password1) < 8:
-            return render(request, 'lab_queue_app/register_username_password.html',
-                          {'error': 'Пароль должен содержать минимум 8 символов.'})
-
-        request.session['register_data'] = {
-            'username': username,
-            'password': password1,
-        }
-        return redirect('register_captcha')
-
-    return render(request, 'lab_queue_app/register_username_password.html')
+        form = CustomUserCreationForm(request.POST)
+        if form.is_valid():
+            request.session['register_data'] = {
+                'username': form.cleaned_data['username'],
+                'password': form.cleaned_data['password1'],
+                'email': form.cleaned_data['email']
+            }
+            return redirect('register_email')
+    else:
+        form = CustomUserCreationForm()
+    
+    return render(request, 'lab_queue_app/register_username_password.html', {
+        'form': form,
+        'RECAPTCHA_PUBLIC_KEY': '6Ld7pTUrAAAAAFrVLFWzdWZeBznykViTZ1HyMwiW'
+    })
 
 def register_captcha(request):
     if 'register_data' not in request.session:
@@ -299,7 +407,6 @@ def register_verification_code(request):
 
 def register_telegram_choice(request):
     print(f"Сессия на telegram_choice: {request.session.get('register_data', 'Отсутствует')}")
-    # Временная отладка: уберём редирект, чтобы проверить шаблон
     return render(request, 'lab_queue_app/register_telegram_choice.html')
 
 def register_telegram_link(request):
@@ -315,7 +422,7 @@ def register_telegram_link(request):
         # Генерируем токен привязки
         token = TelegramBindToken.objects.create(user=request.user)
         # Формируем глубокую ссылку
-        bot_username = 'plaki_plaki_prod_bot'  # Замени на имя твоего бота (например, @YourBot)
+        bot_username = 'plaki_plaki_prod_bot'  # Замени на имя твоего бота
         deep_link = f"https://t.me/{bot_username}?start={token.token}"
         return render(request, 'lab_queue_app/register_telegram_link.html', {
             'deep_link': deep_link,
@@ -337,11 +444,9 @@ def register_study_group(request):
                 'error': 'Выберите существующую учебную группу.'
             })
 
-        # Пользователь уже создан, профиль уже обновлён ботом, ничего не делаем с telegram_id
+        # Пользователь уже создан, профиль уже обновлён ботом
         user = request.user
         profile = user.profile
-        # Удаляем эту строку, так как telegram_id уже установлен ботом
-        # profile.telegram_id = register_data.get('telegram_id', '')
         profile.save()
 
         # Привязываем учебную группу
@@ -364,57 +469,67 @@ def logout_view(request):
 
 @login_required
 def join_queue(request, work_id):
-    if request.method == 'POST':
-        work_id = request.POST.get('work_id')
+    if request.method == 'POST' and request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         is_hurry = request.POST.get('is_hurry') == 'on'
-        user = request.user
-        if join_queue_util(user, work_id, is_hurry):
-            return redirect('cabinet')
+        participant, created = WaitingListParticipant.objects.get_or_create(
+            user=request.user,
+            practical_work_id=work_id,
+            defaults={'status': 'active', 'is_hurry': is_hurry, 'list_position': 0}
+        )
+        if not created:
+            participant.status = 'active'
+            participant.save()
+        return JsonResponse({'success': True})
     return redirect('cabinet')
 
 @login_required
 def mark_served(request, work_id):
-    if request.method == 'POST':
-        practical_work = get_object_or_404(PracticalWork, id=work_id)
-        participant = WaitingListParticipant.objects.filter(user=request.user, practical_work=practical_work).first()  # Вернули user
-        if participant:
-            participant.status = 'served'
-            participant.save()
-        else:
-            WaitingListParticipant.objects.create(
-                user=request.user,  # Вернули user
-                practical_work=practical_work,
-                status='served'
+    if request.method == 'POST' and request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        try:
+            participant, created = WaitingListParticipant.objects.get_or_create(
+                user=request.user,
+                practical_work_id=work_id,
+                defaults={'status': 'served', 'is_hurry': False, 'list_position': 0}
             )
-        return redirect('cabinet')
-    return redirect('cabinet')
+            if not created:
+                participant.status = 'served'
+                participant.save()
+            # Пересчитываем позиции
+            work = PracticalWork.objects.get(id=work_id)
+            WaitingListParticipant.recalculate_positions(work.subject_id)
+            return JsonResponse({'success': True})
+        except PracticalWork.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Work not found'})
+    return JsonResponse({'success': False, 'error': 'Invalid request'})
 
 @login_required
 def cancel_served(request, work_id):
-    if request.method == 'POST':
-        practical_work = get_object_or_404(PracticalWork, id=work_id)
-        participant = WaitingListParticipant.objects.filter(user=request.user, practical_work=practical_work).first()  # Вернули user
-        if participant:
-            if participant.status == 'served':
-                participant.status = 'active'
-                participant.save()
-                WaitingListParticipant.recalculate_positions(practical_work.subject_id)
-        return redirect('cabinet')
-    return redirect('cabinet')
+    if request.method == 'POST' and request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        try:
+            participant = WaitingListParticipant.objects.filter(user=request.user, practical_work_id=work_id).first()
+            if participant:
+                participant.delete()
+            # Пересчитываем позиции
+            work = PracticalWork.objects.get(id=work_id)
+            WaitingListParticipant.recalculate_positions(work.subject_id)
+            return JsonResponse({'success': True})
+        except PracticalWork.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Work not found'})
+    return JsonResponse({'success': False, 'error': 'Invalid request'})
 
 @login_required
 def leave_queue(request, work_id):
-    print("Request user:", request.user, 
-          "Type:", type(request.user), 
-          "Is authenticated:", request.user.is_authenticated, 
-          "ID:", request.user.id)
-    if request.method == 'POST':
-        work_id = request.POST.get('work_id')
+    if request.method == 'POST' and request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         has_passed = request.POST.get('has_passed') == 'on'
-        user = request.user
-        leave_queue_util(user, work_id, has_passed)
+        participant = WaitingListParticipant.objects.filter(user=request.user, practical_work_id=work_id).first()
+        if participant:
+            if has_passed:
+                participant.status = 'served'
+            else:
+                participant.status = 'left'
+            participant.save()
+        return JsonResponse({'success': True})
     return redirect('cabinet')
-
 
 def update_positions(work):
     participants = WaitingListParticipant.objects.filter(practical_work=work, status='active').order_by('is_hurry',
@@ -426,3 +541,12 @@ def update_positions(work):
 def check_telegram_bind(request):
     if request.user.is_authenticated and request.user.profile.telegram_id:
         return JsonResponse({'is_bound': True})
+    
+@login_required
+def check_work_status(request):
+    if request.method == 'POST' and request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        work_id = request.POST.get('work_id')
+        participant = WaitingListParticipant.objects.filter(user=request.user, practical_work_id=work_id).first()
+        is_served = participant and participant.status == 'served' if participant else False
+        return JsonResponse({'success': True, 'is_served': is_served})
+    return JsonResponse({'success': False, 'error': 'Неверный запрос'})

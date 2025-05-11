@@ -1,0 +1,46 @@
+<div id="subjects-section">
+    {% if subjects_with_works %}
+        {% for subject_item in subjects_with_works %}
+            <div class="subject-section" data-subject-id="{{ subject_item.subject.id }}">
+                <h4>
+                    {{ subject_item.subject.name }} - 
+                    Расписание: {{ subject_item.schedule_text }}
+                    {% if subject_item.is_running %}
+                        (идёт)
+                    {% else %}
+                        {% if subject_item.next_date %}
+                            (следующая пара: {{ subject_item.next_date }})
+                        {% endif %}
+                    {% endif %}
+                </h4>
+                <ul class="works-list">
+                    {% for item in subject_item.works %}
+                        <li class="work-item" data-work-id="{{ item.work.id }}">
+                            Лаба {{ item.work.sequence_number }} - {{ item.work.name }}
+                            {% if item.is_served %}
+                                <span>Сдано</span>
+                                <form method="post" action="{% url 'cancel_served' item.work.id %}" class="cancel-served-form" style="display:inline;" data-work-id="{{ item.work.id }}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="cancel-served-btn">Отметить несданной</button>
+                                </form>
+                            {% else %}
+                                <form method="post" action="{% url 'mark_served' item.work.id %}" class="mark-served-form" style="display:inline;" data-work-id="{{ item.work.id }}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="mark-served-btn">Отметить сданной</button>
+                                </form>
+                                <button class="join-queue-btn" onclick="openJoinModal({{ item.work.id }}, '{{ item.work.sequence_number }} {{ item.work.name }}', '{{ item.available_works_str|escapejs }}')">
+                                    Встать в очередь
+                                </button>
+                                {% if item.participant and item.participant.status == 'active' %}
+                                    <span>В очереди (позиция: {{ item.participant.list_position }})</span>
+                                {% endif %}
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% endfor %}
+    {% else %}
+        <p>У вас нет предметов. Обратитесь к администратору, чтобы добавить предметы для вашей группы.</p>
+    {% endif %}
+</div>

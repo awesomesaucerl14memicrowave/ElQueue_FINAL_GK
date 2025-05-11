@@ -1,0 +1,21 @@
+<li class="work-item" data-work-id="{{ work.id }}">
+    Лаба {{ work.sequence_number }} - {{ work.name }}
+    {% if is_served %}
+        <span>Сдано</span>
+        <form method="post" action="{% url 'cancel_served' work.id %}" class="cancel-served-form" style="display:inline;" data-work-id="{{ work.id }}">
+            {% csrf_token %}
+            <button type="submit" class="cancel-served-btn">Отметить несданной</button>
+        </form>
+    {% else %}
+        <form method="post" action="{% url 'mark_served' work.id %}" class="mark-served-form" style="display:inline;" data-work-id="{{ work.id }}">
+            {% csrf_token %}
+            <button type="submit" class="mark-served-btn">Отметить сданной</button>
+        </form>
+        <button class="join-queue-btn" onclick="openJoinModal({{ work.id }}, '{{ work.sequence_number }} {{ work.name }}', '{{ available_works_str|escapejs }}')">
+            Встать в очередь
+        </button>
+        {% if participant and participant.status == 'active' %}
+            <span>В очереди (позиция: {{ participant.list_position }})</span>
+        {% endif %}
+    {% endif %}
+</li>
