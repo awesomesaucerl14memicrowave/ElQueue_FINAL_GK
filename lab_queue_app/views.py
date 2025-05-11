@@ -295,19 +295,32 @@ def register_username_password(request):
     if request.method == 'POST':
         form = CustomUserCreationForm(request.POST)
         if form.is_valid():
+            email = form.cleaned_data['email']
+            username = form.cleaned_data['username']
+            password = form.cleaned_data['password1']
+            code = str(random.randint(100000, 999999))
+            print(f"Код подтверждения для {email}: {code}")
             request.session['register_data'] = {
-                'username': form.cleaned_data['username'],
-                'password': form.cleaned_data['password1'],
-                'email': form.cleaned_data['email']
+                'username': username,
+                'password': password,
+                'email': email,
+                'code': code
             }
-            return redirect('register_email')
+            try:
+                send_mail(
+                    'Код подтверждения',
+                    f'Ваш код подтверждения: {code}',
+                    None,  # Используем DEFAULT_FROM_EMAIL из настроек
+                    [email],
+                    fail_silently=False,
+                )
+            except Exception as e:
+                form.add_error('email', f'Не удалось отправить письмо: {e}')
+                return render(request, 'lab_queue_app/register_username_password.html', {'form': form})
+            return redirect('register_verification_code')
     else:
         form = CustomUserCreationForm()
-    
-    return render(request, 'lab_queue_app/register_username_password.html', {
-        'form': form,
-        'RECAPTCHA_PUBLIC_KEY': '6Ld7pTUrAAAAAFrVLFWzdWZeBznykViTZ1HyMwiW'
-    })
+    return render(request, 'lab_queue_app/register_username_password.html', {'form': form})
 
 def register_captcha(request):
     if 'register_data' not in request.session:
@@ -361,49 +374,71 @@ def register_verification_code(request):
         return redirect('register')
 
     email = request.session['register_data'].get('email', '')
-    if request.method == 'POST':
-        email = request.POST.get('email')
-        code = request.POST.get('code')
+    resend_timeout = settings.VERIFICATION_CODE_RESEND_TIMEOUT
+    now = int(timezone.now().timestamp())
+    last_sent = request.session['register_data'].get('last_code_sent', 0)
+    seconds_left = max(0, last_sent + resend_timeout - now)
 
+    if request.method == 'POST':
+        if 'resend' in request.POST:
+            if seconds_left == 0:
+                code = str(random.randint(100000, 999999))
+                request.session['register_data']['code'] = code
+                request.session['register_data']['last_code_sent'] = now
+                request.session.modified = True
+                print(f"Код подтверждения для {email}: {code}")
+                try:
+                    send_mail(
+                        'Код подтверждения',
+                        f'Ваш новый код подтверждения: {code}',
+                        None,
+                        [email],
+                        fail_silently=False,
+                    )
+                except Exception as e:
+                    return render(request, 'lab_queue_app/register_verification_code.html', {
+                        'email': email,
+                        'error': f'Не удалось отправить письмо: {e}',
+                        'seconds_left': resend_timeout
+                    })
+                seconds_left = resend_timeout
+            return render(request, 'lab_queue_app/register_verification_code.html', {
+                'email': email,
+                'message': 'Код отправлен повторно!',
+                'seconds_left': seconds_left
+            })
+        # Обычная проверка кода
+        code = request.POST.get('code')
         stored_code = request.session['register_data'].get('code')
         if not stored_code:
             return render(request, 'lab_queue_app/register_verification_code.html', {
                 'email': email,
-                'error': 'Код подтверждения не был сгенерирован. Пожалуйста, вернитесь на предыдущий шаг.'
+                'error': 'Код подтверждения не был сгенерирован. Пожалуйста, вернитесь на предыдущий шаг.',
+                'seconds_left': seconds_left
             })
-
         if code != stored_code:
             return render(request, 'lab_queue_app/register_verification_code.html', {
                 'email': email,
-                'error': 'Неверный код.'
+                'error': 'Неверный код.',
+                'seconds_left': seconds_left
             })
-
-        # Обновляем email в сессии
+        # Успешно: создаём пользователя
         register_data = request.session['register_data']
-        register_data['email'] = email
-        request.session['register_data'] = register_data
-        request.session.modified = True  # Явно отмечаем, что сессия изменена
-        print(f"Сессия перед логином: {request.session['register_data']}")  # Отладка
-
-        # Создаём пользователя после успешного подтверждения почты
         user = User.objects.create_user(
             username=register_data['username'],
             password=register_data['password'],
             email=register_data['email']
         )
-        # Создаём профиль
         UserProfile.objects.create(user=user)
-        # Логиним пользователя
         login(request, user)
-
-        # Сохраняем сессию после логина
-        request.session['register_data'] = register_data
-        request.session.modified = True
-        print(f"Сессия после логина: {request.session['register_data']}")  # Отладка
-
+        del request.session['register_data']
         return redirect('register_telegram_choice')
 
-    return render(request, 'lab_queue_app/register_verification_code.html', {'email': email})
+    return render(request, 'lab_queue_app/register_verification_code.html', {
+        'email': email,
+        'seconds_left': seconds_left,
+        'resend_timeout': resend_timeout
+    })
 
 def register_telegram_choice(request):
     print(f"Сессия на telegram_choice: {request.session.get('register_data', 'Отсутствует')}")
