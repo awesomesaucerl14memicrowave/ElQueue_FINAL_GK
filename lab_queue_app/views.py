@@ -440,6 +440,14 @@ def register_verification_code(request):
     })
 
 def register_telegram_choice(request):
+    if request.method == 'POST':
+        if 'skip' in request.POST:
+            return redirect('register_study_group')
+        if 'link_telegram' in request.POST:
+            token = TelegramBindToken.objects.create(user=request.user)
+            bot_username = 'plaki_plaki_prod_bot'  # Замени на имя твоего бота
+            deep_link = f"https://t.me/{bot_username}?start={token.token}"
+            return redirect(deep_link)
     print(f"Сессия на telegram_choice: {request.session.get('register_data', 'Отсутствует')}")
     return render(request, 'lab_queue_app/register_telegram_choice.html')
 
