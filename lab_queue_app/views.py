@@ -238,7 +238,7 @@ def get_schedule_info(slot):
     }
 
 @login_required
-def settings(request):
+def user_settings(request):
     if not hasattr(request.user, 'profile'):
         UserProfile.objects.create(user=request.user)
 
@@ -431,7 +431,6 @@ def register_verification_code(request):
         )
         UserProfile.objects.create(user=user)
         login(request, user)
-        del request.session['register_data']
         return redirect('register_telegram_choice')
 
     return render(request, 'lab_queue_app/register_verification_code.html', {
@@ -489,7 +488,7 @@ def register_study_group(request):
         UserStudyGroup.objects.create(user=user, study_group=study_group)
 
         # Очищаем сессию
-        del request.session['register_data']
+        request.session.pop('register_data', None)
 
         return redirect('cabinet')
 
