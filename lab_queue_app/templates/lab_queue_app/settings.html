@@ -1,0 +1,47 @@
+{% extends 'lab_queue_app/base.html' %}
+{% load custom_filters %}
+{% block title %}Настройки{% endblock %}
+{% block content %}
+    <h2>Настройки</h2>
+    <form method="post">
+        {% csrf_token %}
+        {% if profile.avatar %}
+            <img src="{{ profile.avatar.image.url }}" alt="Аватар" style="max-width: 100px;">
+        {% else %}
+            <p>Аватар отсутствует</p>
+        {% endif %}
+        <label>Тема:</label>
+        <select name="theme">
+            <option value="light" {% if profile.theme == 'light' %}selected{% endif %}>Светлая</option>
+            <option value="dark" {% if profile.theme == 'dark' %}selected{% endif %}>Тёмная</option>
+        </select><br>
+
+        <label><input type="checkbox" name="email_notifications" {% if profile.email_notifications %}checked{% endif %}> Уведомления по email</label><br>
+        <label><input type="checkbox" name="telegram_notifications" {% if profile.telegram_notifications %}checked{% endif %}> Уведомления в Telegram</label><br>
+
+        <label>Telegram ID: <input type="text" name="telegram_id" value="{{ profile.telegram_id|default:'' }}" readonly></label><br>
+        <label>Email: <input type="email" name="email" value="{{ request.user.email|default:'' }}"></label><br>
+
+        <label>Учебная группа:
+            <select name="study_group">
+                <option value="">Не выбрано</option>
+                {% for group in study_groups %}
+                    <option value="{{ group.id }}" {% if user_study_group and user_study_group.study_group.id == group.id %}selected{% endif %}>
+                        {{ group.name }}
+                    </option>
+                {% endfor %}
+            </select>
+        </label><br>
+
+        <h3>Предметы</h3>
+        {% for subject in subjects %}
+            <label>
+                <input type="checkbox" name="subject_{{ subject.id }}" {% if preferences|get_item:subject.id %}checked{% endif %}>
+                {{ subject.name }}
+            </label><br>
+        {% endfor %}
+
+        <label>Аватар: <input type="file" name="avatar"></label><br>
+        <button type="submit">Сохранить</button>
+    </form>
+{% endblock %}

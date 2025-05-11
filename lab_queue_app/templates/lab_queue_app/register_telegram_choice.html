@@ -1,0 +1,13 @@
+{% extends 'lab_queue_app/base.html' %}
+{% block title %}Регистрация - Выбор Telegram{% endblock %}
+{% block content %}
+    <h2>Регистрация - Выбор Telegram</h2>
+    <form method="post" action="{% url 'register_telegram_link' %}">
+        {% csrf_token %}
+        <button type="submit" name="link_telegram">Привязать Telegram</button>
+    </form>
+    <form method="post" action="{% url 'register_study_group' %}">
+        {% csrf_token %}
+        <button type="submit" name="skip">Пропустить</button>
+    </form>
+{% endblock %}

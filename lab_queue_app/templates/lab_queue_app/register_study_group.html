@@ -1,0 +1,16 @@
+{% extends 'lab_queue_app/base.html' %}
+{% block title %}Регистрация - Учебная группа{% endblock %}
+{% block content %}
+    <h2>Регистрация - Учебная группа</h2>
+    <form method="post">
+        {% csrf_token %}
+        <label>Учебная группа:
+            <select name="study_group" required>
+                {% for group in study_groups %}
+                    <option value="{{ group.id }}">{{ group.name }}</option>
+                {% endfor %}
+            </select>
+        </label><br>
+        <button type="submit">Завершить</button>
+    </form>
+{% endblock %}

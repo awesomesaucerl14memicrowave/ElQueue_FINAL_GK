@@ -1,0 +1,13 @@
+{% extends 'lab_queue_app/base.html' %}
+{% block title %}Регистрация - Email{% endblock %}
+{% block content %}
+    <h2>Регистрация - Email</h2>
+    <form method="post">
+        {% csrf_token %}
+        <label>Email: <input type="email" name="email" required></label><br>
+        {% if error %}
+            <p style="color: red;">{{ error }}</p>
+        {% endif %}
+        <button type="submit">Продолжить</button>
+    </form>
+{% endblock %}

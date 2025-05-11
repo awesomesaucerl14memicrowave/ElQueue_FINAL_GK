@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{% block title %}{% endblock %}</title>
+</head>
+<body>
+    <nav>
+        <a href="{% url 'index' %}">Главная</a>
+        {% if user.is_authenticated %}
+            <a href="{% url 'cabinet' %}">Кабинет</a>
+            <a href="{% url 'settings' %}">Настройки</a>
+            <form method="post" action="{% url 'logout' %}">
+                {% csrf_token %}
+                <button type="submit">Выйти</button>
+            </form>
+        {% else %}
+            <a href="{% url 'register' %}">Регистрация</a>  <!-- Используем 'register' -->
+            <a href="{% url 'login' %}">Вход</a>
+        {% endif %}
+    </nav>
+    <div>
+        {% block content %}
+        {% endblock %}
+    </div>
+</body>
+</html>
