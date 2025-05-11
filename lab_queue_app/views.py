@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import login, logout as auth_logout
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
-from .forms import CustomUserCreationForm
+from .forms import CustomUserCreationForm, ResendCaptchaForm
 from .models import UserProfile, Subject, UserSubjectPreference, AvatarImage, PracticalWork, WaitingListParticipant, \
     Schedule, StudyGroup, UserStudyGroup, TelegramBindToken, StudyGroupSubject
 from django.core.files.storage import FileSystemStorage
@@ -17,6 +17,8 @@ from django.core.cache import cache
 from .queue_utils import join_queue_util, leave_queue_util
 from .schedule_utils import get_schedule_info
 from django.conf import settings
+from captcha.fields import ReCaptchaField
+from captcha.widgets import ReCaptchaV2Checkbox
 
 logger = logging.getLogger(__name__)
 
@@ -379,33 +381,73 @@ def register_verification_code(request):
     last_sent = request.session['register_data'].get('last_code_sent', 0)
     seconds_left = max(0, last_sent + resend_timeout - now)
 
+    # --- Антиспам ---
+    attempts = request.session.get('verification_resend_attempts', [])
+    # Удаляем старые попытки (старше 10 минут)
+    attempts = [t for t in attempts if now - t < 600]
+    request.session['verification_resend_attempts'] = attempts
+    show_captcha = len(attempts) >= 3
+    max_attempts = 5
+    error = None
+    captcha_form = None
+
     if request.method == 'POST':
         if 'resend' in request.POST:
-            if seconds_left == 0:
-                code = str(random.randint(100000, 999999))
-                request.session['register_data']['code'] = code
-                request.session['register_data']['last_code_sent'] = now
-                request.session.modified = True
-                print(f"Код подтверждения для {email}: {code}")
-                try:
-                    send_mail(
-                        'Код подтверждения',
-                        f'Ваш новый код подтверждения: {code}',
-                        None,
-                        [email],
-                        fail_silently=False,
-                    )
-                except Exception as e:
+            if len(attempts) >= max_attempts:
+                return render(request, 'lab_queue_app/register_verification_code.html', {
+                    'email': email,
+                    'error': 'Слишком много попыток. Попробуйте позже.',
+                    'seconds_left': seconds_left,
+                    'resend_timeout': resend_timeout,
+                    'show_captcha': show_captcha,
+                    'captcha_form': None
+                })
+            # Если нужно капчу, проверяем её
+            if show_captcha:
+                captcha_form = ResendCaptchaForm(request.POST or None)
+                if not captcha_form.is_valid():
                     return render(request, 'lab_queue_app/register_verification_code.html', {
                         'email': email,
-                        'error': f'Не удалось отправить письмо: {e}',
-                        'seconds_left': resend_timeout
+                        'error': 'Подтвердите, что вы не робот.',
+                        'seconds_left': seconds_left,
+                        'resend_timeout': resend_timeout,
+                        'show_captcha': show_captcha,
+                        'captcha_form': captcha_form
                     })
-                seconds_left = resend_timeout
+            # Увеличиваем таймер с каждой попыткой
+            resend_timeout_dynamic = resend_timeout + 10 * len(attempts)
+            code = str(random.randint(100000, 999999))
+            request.session['register_data']['code'] = code
+            request.session['register_data']['last_code_sent'] = now
+            request.session.modified = True
+            attempts.append(now)
+            request.session['verification_resend_attempts'] = attempts
+            print(f"Код подтверждения для {email}: {code}")
+            try:
+                send_mail(
+                    'Код подтверждения',
+                    f'Ваш новый код подтверждения: {code}',
+                    None,
+                    [email],
+                    fail_silently=False,
+                )
+            except Exception as e:
+                return render(request, 'lab_queue_app/register_verification_code.html', {
+                    'email': email,
+                    'error': f'Не удалось отправить письмо: {e}',
+                    'seconds_left': resend_timeout_dynamic,
+                    'resend_timeout': resend_timeout_dynamic,
+                    'show_captcha': show_captcha,
+                    'captcha_form': captcha_form
+                })
+            seconds_left = resend_timeout_dynamic
             return render(request, 'lab_queue_app/register_verification_code.html', {
                 'email': email,
                 'message': 'Код отправлен повторно!',
-                'seconds_left': seconds_left
+                'seconds_left': seconds_left,
+                'resend_timeout': resend_timeout_dynamic,
+                'show_captcha': show_captcha,
+                'captcha_form': captcha_form
             })
         # Обычная проверка кода
         code = request.POST.get('code')
@@ -414,13 +456,19 @@ def register_verification_code(request):
             return render(request, 'lab_queue_app/register_verification_code.html', {
                 'email': email,
                 'error': 'Код подтверждения не был сгенерирован. Пожалуйста, вернитесь на предыдущий шаг.',
-                'seconds_left': seconds_left
+                'seconds_left': seconds_left,
+                'resend_timeout': resend_timeout,
+                'show_captcha': show_captcha,
+                'captcha_form': captcha_form
             })
         if code != stored_code:
             return render(request, 'lab_queue_app/register_verification_code.html', {
                 'email': email,
                 'error': 'Неверный код.',
-                'seconds_left': seconds_left
+                'seconds_left': seconds_left,
+                'resend_timeout': resend_timeout,
+                'show_captcha': show_captcha,
+                'captcha_form': captcha_form
             })
         # Успешно: создаём пользователя
         register_data = request.session['register_data']
@@ -436,7 +484,9 @@ def register_verification_code(request):
     return render(request, 'lab_queue_app/register_verification_code.html', {
         'email': email,
         'seconds_left': seconds_left,
-        'resend_timeout': resend_timeout
+        'resend_timeout': resend_timeout,
+        'show_captcha': show_captcha,
+        'captcha_form': captcha_form
     })
 
 def register_telegram_choice(request):

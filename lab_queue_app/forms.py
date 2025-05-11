@@ -63,3 +63,6 @@ class CustomUserCreationForm(UserCreationForm):
         if not re.search(r'\d', password) or not re.search(r'[A-Za-z]', password):
             raise ValidationError(_('Пароль должен содержать буквы и цифры.'))
         return password
+
+class ResendCaptchaForm(forms.Form):
+    captcha = ReCaptchaField(widget=ReCaptchaV2Checkbox())

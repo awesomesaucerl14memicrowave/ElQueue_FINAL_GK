@@ -7,6 +7,7 @@
     {% endif %}
     {% if message %}
         <p style="color: green;">{{ message }}</p>
+        <p style="color: orange;">Внимание: используйте только последний полученный код! Все предыдущие коды больше не действуют.</p>
     {% endif %}
     <form method="post" id="codeForm">
         {% csrf_token %}
@@ -18,6 +19,10 @@
         {% csrf_token %}
         <input type="hidden" name="resend" value="1">
         <button type="submit" id="resendBtn">Отправить код повторно</button>
+        {% if show_captcha %}
+            <div style="margin-top:10px;">{{ captcha_form.captcha }}</div>
+            <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+        {% endif %}
     </form>
     <div id="timer" style="margin-top: 10px;"></div>
     <script>
