@@ -123,34 +123,31 @@ def get_cabinet_data(request):
         print(f"Передаём в шаблон для {subject.name}: served_count={subject_data['served_count']}, total_works={subject_data['total_works']}")
         subjects_with_works.append(subject_data)
 
-    # Формируем активные очереди
-    user_works = WaitingListParticipant.objects.filter(user=request.user, status='active')
-    user_work_subjects = set(work.practical_work.subject_id for work in user_works)
-    
-    # Формируем карточки для вставания в очередь
+    # Формируем карточки для вставания в очередь (одна карточка на предмет)
     queue_cards = []
     for subject in subjects:
-        if subject.id not in user_work_subjects:
-            practical_works_for_subject = PracticalWork.objects.filter(subject=subject).order_by('sequence_number')
-            served_works = WaitingListParticipant.objects.filter(
-                user=request.user, practical_work__subject=subject, status='served'
-            ).values_list('practical_work_id', flat=True)
-            available_works = practical_works_for_subject.exclude(id__in=served_works)
-            if available_works.exists():
-                first_work = available_works.first()
-                queue_cards.append({
-                    'subject': subject,
-                    'available_works': ['{} | {} | {}'.format(work.id, work.sequence_number, w.name) for w in available_works],
-                    'first_work_id': first_work.id,
-                    'first_work_seq': first_work.sequence_number,
-                    'first_work_name': first_work.name,
-                })
-            else:
-                queue_cards.append({
-                    'subject': subject,
-                    'no_available_works': True
-                })
+        practical_works_for_subject = PracticalWork.objects.filter(subject=subject).order_by('sequence_number')
+        available_works = []
+        for work in practical_works_for_subject:
+            has_active = WaitingListParticipant.objects.filter(user=request.user, practical_work=work, status='active').exists()
+            is_served = WaitingListParticipant.objects.filter(user=request.user, practical_work=work, status='served').exists()
+            if not has_active and not is_served:
+                available_works.append(work)
+        if available_works:
+            available_works_str = ', '.join(['{}|{}|{}'.format(w.id, w.sequence_number, w.name) for w in available_works])
+            first_work = available_works[0]
+            queue_cards.append({
+                'subject': subject,
+                'available_works': available_works,
+                'available_works_str': available_works_str,
+                'first_work_id': first_work.id,
+                'first_work_seq': first_work.sequence_number,
+                'first_work_name': first_work.name,
+            })
+    if not queue_cards:
+        queue_cards.append({'no_available_works': True})
 
+    user_works = WaitingListParticipant.objects.filter(user=request.user, status='active')
     # Обогащаем user_works для отображения расписания
     enriched_user_works = []
     for work in user_works:
@@ -561,18 +558,55 @@ def logout_view(request):
 
 @login_required
 def join_queue(request, work_id):
-    if request.method == 'POST' and request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        is_hurry = request.POST.get('is_hurry') == 'on'
-        participant, created = WaitingListParticipant.objects.get_or_create(
-            user=request.user,
-            practical_work_id=work_id,
-            defaults={'status': 'active', 'is_hurry': is_hurry, 'list_position': 0}
-        )
-        if not created:
-            participant.status = 'active'
-            participant.save()
-        return JsonResponse({'success': True})
-    return redirect('cabinet')
+    if request.method == 'POST':
+        try:
+            print(f"Join queue request - User: {request.user}, Work ID: {work_id}")
+            print(f"POST data: {request.POST}")
+            print(f"Headers: {request.headers}")
+            
+            is_hurry = request.POST.get('is_hurry') == 'on'
+            print(f"Is hurry: {is_hurry}")
+            
+            # Проверяем, не стоит ли уже пользователь в очереди
+            existing_participant = WaitingListParticipant.objects.filter(
+                user=request.user,
+                practical_work_id=work_id,
+                status='active'
+            ).first()
+            
+            if existing_participant:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Вы уже стоите в этой очереди'
+                })
+            
+            # Создаем новую запись
+            participant = WaitingListParticipant.objects.create(
+                user=request.user,
+                practical_work_id=work_id,
+                status='active',
+                is_hurry=is_hurry,
+                list_position=0
+            )
+            
+            # Пересчитываем позиции
+            work = PracticalWork.objects.get(id=work_id)
+            WaitingListParticipant.recalculate_positions(work.subject_id)
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Вы успешно встали в очередь'
+            })
+        except Exception as e:
+            print(f"Error in join_queue: {str(e)}")
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
+            }, status=400)
+    return JsonResponse({
+        'success': False,
+        'error': 'Неверный метод запроса'
+    }, status=400)
 
 @login_required
 def mark_served(request, work_id):
@@ -612,16 +646,43 @@ def cancel_served(request, work_id):
 @login_required
 def leave_queue(request, work_id):
     if request.method == 'POST' and request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        has_passed = request.POST.get('has_passed') == 'on'
-        participant = WaitingListParticipant.objects.filter(user=request.user, practical_work_id=work_id).first()
-        if participant:
-            if has_passed:
-                participant.status = 'served'
+        try:
+            has_passed = request.POST.get('has_passed') == 'on'
+            participant = WaitingListParticipant.objects.filter(
+                user=request.user, 
+                practical_work_id=work_id,
+                status='active'
+            ).first()
+            
+            if participant:
+                if has_passed:
+                    participant.status = 'served'
+                else:
+                    participant.status = 'left'
+                participant.save()
+                
+                # Пересчитываем позиции
+                WaitingListParticipant.recalculate_positions(participant.practical_work.subject_id)
+                
+                return JsonResponse({
+                    'success': True,
+                    'message': 'Вы успешно вышли из очереди'
+                })
             else:
-                participant.status = 'left'
-            participant.save()
-        return JsonResponse({'success': True})
-    return redirect('cabinet')
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Вы не состоите в этой очереди'
+                })
+        except Exception as e:
+            print(f"Error in leave_queue: {str(e)}")
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
+            }, status=400)
+    return JsonResponse({
+        'success': False,
+        'error': 'Неверный метод запроса'
+    }, status=400)
 
 def update_positions(work):
     participants = WaitingListParticipant.objects.filter(practical_work=work, status='active').order_by('is_hurry',
@@ -642,3 +703,27 @@ def check_work_status(request):
         is_served = participant and participant.status == 'served' if participant else False
         return JsonResponse({'success': True, 'is_served': is_served})
     return JsonResponse({'success': False, 'error': 'Неверный запрос'})
+
+@login_required
+def queue_details(request, work_id):
+    work = get_object_or_404(PracticalWork, id=work_id)
+    active_participants = WaitingListParticipant.objects.filter(
+        practical_work=work,
+        status='active'
+    ).select_related('user').order_by('list_position')
+    
+    is_in_queue = False
+    if request.user.is_authenticated:
+        is_in_queue = WaitingListParticipant.objects.filter(
+            user=request.user,
+            practical_work=work,
+            status='active'
+        ).exists()
+    
+    context = {
+        'work': work,
+        'active_participants': active_participants,
+        'active_participants_count': active_participants.count(),
+        'is_in_queue': is_in_queue,
+    }
+    return render(request, 'lab_queue_app/queue_details.html', context)

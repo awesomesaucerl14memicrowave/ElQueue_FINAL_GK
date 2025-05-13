@@ -52,7 +52,9 @@
                                             {% csrf_token %}
                                             <button type="submit" class="mark-served-btn">Отметить сданной</button>
                                         </form>
-                                        <button class="join-queue-btn" onclick="openJoinModal({{ item.work.id }}, '{{ item.work.sequence_number }} {{ item.work.name }}', '{{ item.available_works_str|escapejs }}')">
+                                        <button class="join-queue-btn"
+                                                data-works="{{ item.available_works_str|escapejs }}"
+                                                onclick="openJoinModal({{ item.work.id }}, '{{ item.work.sequence_number }} {{ item.work.name }}', this.getAttribute('data-works'))">
                                             Встать в очередь
                                         </button>
                                         {% if item.participant and item.participant.status == 'active' %}
@@ -89,6 +91,10 @@
                                     {% endif %}
                                 {% endif %}
                                 ({{ entry.status_text }})
+                                <br>
+                                <a href="{% url 'queue_details' entry.work.practical_work.id %}" class="btn btn-info btn-sm" style="margin-top: 5px; margin-right: 5px;">
+                                    Подробнее
+                                </a>
                                 <button class="leave-queue-btn" onclick="openLeaveModal({{ entry.work.practical_work.id }}, '{{ entry.work.practical_work.sequence_number }} {{ entry.work.practical_work.name }}')">
                                     Выйти из очереди
                                 </button>
@@ -107,22 +113,22 @@
             {% if queue_cards %}
                 {% for card in queue_cards %}
                     {% if card.no_available_works %}
-                        <div class="queue-card" data-subject-id="{{ card.subject.id }}">
-                            <h4>{{ card.subject.name }}</h4>
-                            <p>Все лабораторные работы уже сданы.</p>
+                        <div class="queue-card">
+                            <p>Нет доступных лабораторных работ для записи в очередь.</p>
                         </div>
                     {% else %}
                         <div class="queue-card" data-subject-id="{{ card.subject.id }}">
                             <h4>{{ card.subject.name }}</h4>
-                            <p>Следующая лаба: {{ card.first_work_seq }} - {{ card.first_work_name }}</p>
-                            <button class="join-queue-btn" onclick="openJoinModal({{ card.first_work_id }}, '{{ card.first_work_seq }} {{ card.first_work_name }}', '{{ card.available_works|join:', '|escapejs }}')">
+                            <button class="join-queue-btn"
+                                    data-works="{{ card.available_works_str|escapejs }}"
+                                    onclick="openJoinModal({{ card.first_work_id }}, '{{ card.first_work_seq }} {{ card.first_work_name }}', this.getAttribute('data-works'))">
                                 Встать в очередь
                             </button>
                         </div>
                     {% endif %}
                 {% endfor %}
             {% else %}
-                <p>Нет доступных предметов для записи в очередь.</p>
+                <p>Нет доступных лабораторных работ для записи в очередь.</p>
             {% endif %}
         </div>
 
@@ -159,56 +165,82 @@
                 </form>
             </div>
         </div>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3>Активные очереди</h3>
+            </div>
+            <div class="card-body">
+                {% if active_queues %}
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Предмет</th>
+                                <th>Лабораторная работа</th>
+                                <th>Позиция</th>
+                                <th>Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for queue in active_queues %}
+                            <tr>
+                                <td>{{ queue.practical_work.subject.name }}</td>
+                                <td>{{ queue.practical_work.name }}</td>
+                                <td>{{ queue.list_position }}</td>
+                                <td>
+                                    <a href="{% url 'queue_details' queue.practical_work.id %}" class="btn btn-info btn-sm">
+                                        <i class="fas fa-info-circle"></i> Детали очереди
+                                    </a>
+                                    <button class="btn btn-danger btn-sm leave-queue" data-work-id="{{ queue.practical_work.id }}">
+                                        <i class="fas fa-times"></i> Покинуть очередь
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">У вас нет активных очередей</p>
+                {% endif %}
+            </div>
+        </div>
     {% endif %}
 
     <script>
         // Функции для модальных окон
         async function openJoinModal(workId, defaultLabName, availableWorks) {
+            console.log('openJoinModal called with:', {workId, defaultLabName, availableWorks});
             document.getElementById('joinModal').style.display = 'block';
             const select = document.getElementById('joinWorkId');
             select.innerHTML = '<option value="" disabled selected>Выберите лабу</option>';
-            const works = availableWorks.split(', ').map(workStr => {
-                const [id, seqNum, name] = workStr.split('|').map(s => s.trim());
-                return { id: id, name: `${seqNum} | ${name}` };
-            });
-    
-            // Проверяем статус каждой работы на сервере
-            const unsurrenderedWorks = [];
-            for (const work of works) {
-                const response = await fetch('/check-work-status/', {
-                    method: 'POST',
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'X-CSRFToken': getCookie('csrftoken')
-                    },
-                    body: new FormData(document.createElement('form')).append('work_id', work.id)
-                });
-                const data = await response.json();
-                if (data.success && !data.is_served) {
-                    unsurrenderedWorks.push(work);
-                }
-            }
-    
-            if (unsurrenderedWorks.length === 0) {
-                alert('Все лабораторные работы по этому предмету уже сданы.');
-                closeJoinModal();
+            if (!availableWorks || availableWorks.trim() === '') {
                 showToast('Нет доступных лабораторных работ для записи.', 3000);
+                closeJoinModal();
                 return;
             }
-    
-            // Находим первую несданную работу
-            const firstAvailableWork = unsurrenderedWorks[0];
-    
-            unsurrenderedWorks.forEach(work => {
+            const works = availableWorks.split(',').map(workStr => {
+                const parts = workStr.split('|').map(s => s.trim());
+                if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+                    return { id: parts[0], name: `${parts[1]} | ${parts[2]}` };
+                }
+                return null;
+            }).filter(Boolean);
+            console.log('Parsed works:', works);
+            if (works.length === 0) {
+                showToast('Нет доступных лабораторных работ для записи.', 3000);
+                closeJoinModal();
+                return;
+            }
+            works.forEach((work, idx) => {
                 const option = document.createElement('option');
                 option.value = work.id;
                 option.text = work.name;
-                if (work.id == workId || (firstAvailableWork && work.id == firstAvailableWork.id)) {
-                    option.selected = true;
-                }
+                if (idx === 0) option.selected = true;
                 select.appendChild(option);
             });
-            document.getElementById('joinForm').action = "{% url 'join_queue' 0 %}".replace('0', workId);
+            document.getElementById('joinForm').action = "{% url 'join_queue' 0 %}".replace('0', works[0].id);
         }
     
         function closeJoinModal() {
@@ -261,14 +293,24 @@
                 form.querySelector('.join-submit-btn') || 
                 form.querySelector('.leave-submit-btn')) {
                 e.preventDefault();
+                
+                const formData = new FormData(form);
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+                
                 fetch(form.action, {
                     method: 'POST',
-                    body: new FormData(form),
+                    body: formData,
                     headers: {
+                        'X-CSRFToken': csrfToken,
                         'X-Requested-With': 'XMLHttpRequest'
                     }
                 })
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     if (data.success) {
                         if (form.classList.contains('mark-served-form') || form.classList.contains('cancel-served-form')) {
@@ -279,19 +321,22 @@
                             fetchCabinetSection('queues');
                             fetchCabinetSection('subjects');
                             fetchCabinetSection('queue-cards');
+                            showToast(data.message || 'Вы успешно встали в очередь', 3000);
                         } else if (form.querySelector('.leave-submit-btn')) {
                             fetchCabinetSection('queues');
                             fetchCabinetSection('subjects');
                             fetchCabinetSection('queue-cards');
+                            showToast(data.message || 'Вы успешно вышли из очереди', 3000);
                         }
                         closeJoinModal();
                         closeLeaveModal();
                     } else {
-                        alert('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
+                        showToast(data.error || 'Произошла ошибка', 3000);
                     }
                 })
                 .catch(error => {
-                    alert('Ошибка сети: ' + error);
+                    console.error('Error:', error);
+                    showToast('Ошибка при выполнении запроса: ' + error.message, 3000);
                 });
             }
         });

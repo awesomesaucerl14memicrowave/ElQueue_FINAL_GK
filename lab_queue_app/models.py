@@ -85,25 +85,33 @@ class WaitingListParticipant(models.Model):
     def __str__(self):
         return f"{self.user.username} in {self.practical_work.name}"
 
-    @staticmethod
-    def recalculate_positions(subject_id):
-        # Пересчитываем позиции для всех активных участников по предмету
-        participants = WaitingListParticipant.objects.filter(
+    @classmethod
+    def recalculate_positions(cls, subject_id):
+        """Пересчитывает позиции в очереди для всех активных участников."""
+        # Получаем все активные записи для предмета
+        participants = cls.objects.filter(
             practical_work__subject_id=subject_id,
             status='active'
-        ).order_by('-is_hurry', 'join_time')
+        ).select_related('practical_work').order_by(
+            'practical_work__sequence_number',  # Сначала по номеру лабораторной работы
+            '-is_hurry',  # Затем по статусу "тороплюсь" (True идет первым)
+            'join_time'  # Затем по времени входа
+        )
+        
+        # Обновляем позиции одним запросом
         with transaction.atomic():
-            post_save.disconnect(update_positions, sender=WaitingListParticipant)
-            for idx, participant in enumerate(participants, 1):
-                participant.list_position = idx
-                participant.save(update_fields=['list_position'])
-            post_save.connect(update_positions, sender=WaitingListParticipant)
+            for position, participant in enumerate(participants, 1):
+                cls.objects.filter(id=participant.id).update(list_position=position)
 
 # Сигналы для автоматического пересчёта позиций
 @receiver(post_save, sender=WaitingListParticipant)
+def update_positions_on_save(sender, instance, **kwargs):
+    if instance.status == 'active' and not kwargs.get('update_fields'):
+        WaitingListParticipant.recalculate_positions(instance.practical_work.subject_id)
+
 @receiver(post_delete, sender=WaitingListParticipant)
-def update_positions(sender, instance, **kwargs):
-    if instance.status == 'active' or kwargs.get('created', False):
+def update_positions_on_delete(sender, instance, **kwargs):
+    if instance.status == 'active':
         WaitingListParticipant.recalculate_positions(instance.practical_work.subject_id)
 
 class UserStudyGroup(models.Model):

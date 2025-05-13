@@ -16,6 +16,10 @@
                             {% endif %}
                         {% endif %}
                         ({{ entry.status_text }})
+                        <br>
+                        <a href="{% url 'queue_details' entry.work.practical_work.id %}" class="btn btn-info btn-sm" style="margin-top: 5px; margin-right: 5px;">
+                            Подробнее
+                        </a>
                         <button class="leave-queue-btn" onclick="openLeaveModal({{ entry.work.practical_work.id }}, '{{ entry.work.practical_work.sequence_number }} {{ entry.work.practical_work.name }}')">
                             Выйти из очереди
                         </button>

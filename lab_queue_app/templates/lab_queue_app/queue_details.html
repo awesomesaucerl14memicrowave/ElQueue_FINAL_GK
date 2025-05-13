@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ work.title }} - Подробности очереди{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'home' %}">Главная</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">{{ work.title }}</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h1 class="card-title h3 mb-4">{{ work.title }}</h1>
+                    
+                    <div class="mb-4">
+                        <h5 class="text-muted mb-3">Описание работы</h5>
+                        <p class="card-text">{{ work.description|linebreaks }}</p>
+                    </div>
+
+                    <div class="mb-4">
+                        <h5 class="text-muted mb-3">Требования</h5>
+                        <p class="card-text">{{ work.requirements|linebreaks }}</p>
+                    </div>
+
+                    <div class="mb-4">
+                        <h5 class="text-muted mb-3">Дополнительная информация</h5>
+                        <p class="card-text">{{ work.additional_info|linebreaks|default:"Нет дополнительной информации" }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card shadow-sm mb-4">
+                <div class="card-body">
+                    <h5 class="card-title mb-4">Информация об очереди</h5>
+                    
+                    <div class="mb-3">
+                        <p class="mb-1"><strong>Предмет:</strong></p>
+                        <p class="text-muted">{{ work.subject.name }}</p>
+                    </div>
+
+                    <div class="mb-3">
+                        <p class="mb-1"><strong>Номер работы:</strong></p>
+                        <p class="text-muted">{{ work.sequence_number }}</p>
+                    </div>
+
+                    <div class="mb-3">
+                        <p class="mb-1"><strong>Лаборатория:</strong></p>
+                        <p class="text-muted">{{ work.laboratory.name }}</p>
+                    </div>
+
+                    <div class="mb-3">
+                        <p class="mb-1"><strong>Преподаватель:</strong></p>
+                        <p class="text-muted">{{ work.teacher.get_full_name|default:work.teacher.username }}</p>
+                    </div>
+
+                    <div class="mb-3">
+                        <p class="mb-1"><strong>Количество в очереди:</strong></p>
+                        <p class="text-muted">{{ active_participants_count }} человек</p>
+                    </div>
+
+                    {% if user.is_authenticated %}
+                        {% if is_in_queue %}
+                            <form method="post" action="{% url 'leave_queue' work.id %}" class="leave-submit-form">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-danger w-100">
+                                    <i class="fas fa-sign-out-alt"></i> Выйти из очереди
+                                </button>
+                            </form>
+                        {% else %}
+                            <form method="post" action="{% url 'join_queue' work.id %}" class="join-submit-form">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-success w-100">
+                                    <i class="fas fa-sign-in-alt"></i> Встать в очередь
+                                </button>
+                            </form>
+                        {% endif %}
+                    {% else %}
+                        <a href="{% url 'login' %}" class="btn btn-primary w-100">
+                            <i class="fas fa-sign-in-alt"></i> Войти для участия
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title mb-4">Активные участники</h5>
+                    {% if active_participants %}
+                        <div class="list-group list-group-flush">
+                            {% for participant in active_participants %}
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <span class="badge bg-primary me-2">#{{ participant.list_position }}</span>
+                                        {{ participant.user.get_full_name|default:participant.user.username }}
+                                    </div>
+                                    {% if participant.is_hurry %}
+                                        <span class="badge bg-warning text-dark">
+                                            <i class="fas fa-bolt"></i> Торопится
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted mb-0">В очереди пока никого нет</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

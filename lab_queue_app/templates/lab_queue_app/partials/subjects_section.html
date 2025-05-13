@@ -28,7 +28,9 @@
                                     {% csrf_token %}
                                     <button type="submit" class="mark-served-btn">Отметить сданной</button>
                                 </form>
-                                <button class="join-queue-btn" onclick="openJoinModal({{ item.work.id }}, '{{ item.work.sequence_number }} {{ item.work.name }}', '{{ item.available_works_str|escapejs }}')">
+                                <button class="join-queue-btn"
+                                        data-works="{{ item.available_works_str|escapejs }}"
+                                        onclick="openJoinModal({{ item.work.id }}, '{{ item.work.sequence_number }} {{ item.work.name }}', this.getAttribute('data-works'))">
                                     Встать в очередь
                                 </button>
                                 {% if item.participant and item.participant.status == 'active' %}
