@@ -1,0 +1,35 @@
+<div class="card h-100 shadow-sm">
+    <div class="card-body">
+        <h5 class="card-title">{{ work.title }}</h5>
+        <p class="card-text text-muted">
+            <small>
+                <i class="fas fa-book"></i> {{ work.subject.name }}<br>
+                <i class="fas fa-flask"></i> Лабораторная работа №{{ work.sequence_number }}
+            </small>
+        </p>
+        <p class="card-text">{{ work.description|truncatechars:100 }}</p>
+    </div>
+    <div class="card-footer bg-transparent border-0 d-flex justify-content-between align-items-center">
+        <div class="d-flex gap-2">
+            {% if user.is_authenticated %}
+                {% if is_in_queue %}
+                    <form method="post" action="{% url 'leave_queue' work.id %}" class="leave-submit-form">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger btn-sm">
+                            <i class="fas fa-sign-out-alt"></i> Выйти
+                        </button>
+                    </form>
+                {% else %}
+                    <button class="btn btn-success btn-sm join-queue-btn"
+                            onclick="openJoinModal({{ work.id }}, '{{ work.sequence_number }} {{ work.title }}', '{{ available_works_str|escapejs }}')">
+                        <i class="fas fa-sign-in-alt"></i> Встать в очередь
+                    </button>
+                {% endif %}
+            {% else %}
+                <a href="{% url 'login' %}" class="btn btn-primary btn-sm">
+                    <i class="fas fa-sign-in-alt"></i> Войти для участия
+                </a>
+            {% endif %}
+        </div>
+    </div>
+</div> 

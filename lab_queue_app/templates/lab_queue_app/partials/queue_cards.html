@@ -1,22 +1,17 @@
-<div id="queue-cards">
-    {% if queue_cards %}
+{% if queue_cards %}
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
         {% for card in queue_cards %}
-            {% if card.no_available_works %}
-                <div class="queue-card" data-subject-id="{{ card.subject.id }}">
-                    <h4>{{ card.subject.name }}</h4>
-                    <p>Все лабораторные работы уже сданы.</p>
-                </div>
-            {% else %}
-                <div class="queue-card" data-subject-id="{{ card.subject.id }}">
-                    <h4>{{ card.subject.name }}</h4>
-                    <p>Следующая лаба: {{ card.first_work_seq }} - {{ card.first_work_name }}</p>
-                    <button class="join-queue-btn" onclick="openJoinModal({{ card.first_work_id }}, '{{ card.first_work_seq }} {{ card.first_work_name }}', '{{ card.available_works|join:', '|escapejs }}')">
-                        Встать в очередь
-                    </button>
+            {% if not card.no_available_works %}
+                <div class="col">
+                    {% with work=card.subject.practicalwork_set.first %}
+                        {% include 'lab_queue_app/queue_card.html' with work=work available_works_str=card.available_works_str %}
+                    {% endwith %}
                 </div>
             {% endif %}
         {% endfor %}
-    {% else %}
-        <p>Нет доступных предметов для записи в очередь.</p>
-    {% endif %}
-</div>
+    </div>
+{% else %}
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i> Нет доступных очередей
+    </div>
+{% endif %}
