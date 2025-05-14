@@ -38,9 +38,12 @@ def leave_queue_util(user, work_id, has_passed=False):
         status='active'
     ).first()
     if participant:
-        participant.status = 'served' if has_passed else 'left'
-        participant.save()
-        WaitingListParticipant.recalculate_positions(practical_work.subject_id)
+        if has_passed:
+            participant.status = 'served'
+            participant.save()
+            WaitingListParticipant.recalculate_positions(practical_work.subject_id)
+        else:
+            participant.delete()
 
 def recalculate_positions(subject_id):
     """

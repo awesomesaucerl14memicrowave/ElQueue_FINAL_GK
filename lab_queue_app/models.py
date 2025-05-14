@@ -80,7 +80,11 @@ class WaitingListParticipant(models.Model):
     join_time = models.DateTimeField(auto_now_add=True)
     is_hurry = models.BooleanField(default=False)
     list_position = models.IntegerField(default=0)
-    status = models.CharField(max_length=20, choices=[('active', 'Active'), ('left', 'Left'), ('served', 'Served')], default='active')
+    status = models.CharField(max_length=20, choices=[
+        ('active', 'Active'),
+        ('served', 'Served'),
+        ('hurry', 'Hurry')
+    ], default='active')
 
     def __str__(self):
         return f"{self.user.username} in {self.practical_work.name}"

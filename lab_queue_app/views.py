@@ -709,21 +709,26 @@ def queue_details(request, work_id):
     work = get_object_or_404(PracticalWork, id=work_id)
     active_participants = WaitingListParticipant.objects.filter(
         practical_work=work,
-        status='active'
-    ).select_related('user').order_by('list_position')
+        status__in=['active', 'hurry']
+    ).select_related('user').order_by('-is_hurry', 'list_position')
     
     is_in_queue = False
+    user_position = None
     if request.user.is_authenticated:
-        is_in_queue = WaitingListParticipant.objects.filter(
+        user_participant = WaitingListParticipant.objects.filter(
             user=request.user,
             practical_work=work,
-            status='active'
-        ).exists()
+            status__in=['active', 'hurry']
+        ).first()
+        is_in_queue = user_participant is not None
+        if is_in_queue:
+            user_position = user_participant.list_position
     
     context = {
         'work': work,
         'active_participants': active_participants,
         'active_participants_count': active_participants.count(),
         'is_in_queue': is_in_queue,
+        'user_position': user_position,
     }
     return render(request, 'lab_queue_app/queue_details.html', context)

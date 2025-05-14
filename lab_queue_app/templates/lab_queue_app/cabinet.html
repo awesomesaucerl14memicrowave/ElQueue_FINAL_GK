@@ -54,7 +54,7 @@
                                         </form>
                                         <button class="join-queue-btn"
                                                 data-works="{{ item.available_works_str|escapejs }}"
-                                                onclick="openJoinModal({{ item.work.id }}, '{{ item.work.sequence_number }} {{ item.work.name }}', this.getAttribute('data-works'))">
+                                                onclick="openJoinModal({{ item.work.id }}, '{{ item.work.sequence_number }} {{ item.work.name }}', this.getAttribute('data-works'), true)">
                                             Встать в очередь
                                         </button>
                                         {% if item.participant and item.participant.status == 'active' %}
@@ -121,7 +121,7 @@
                             <h4>{{ card.subject.name }}</h4>
                             <button class="join-queue-btn"
                                     data-works="{{ card.available_works_str|escapejs }}"
-                                    onclick="openJoinModal({{ card.first_work_id }}, '{{ card.first_work_seq }} {{ card.first_work_name }}', this.getAttribute('data-works'))">
+                                    onclick="openJoinModal({{ card.first_work_id }}, '{{ card.first_work_seq }} {{ card.first_work_name }}', this.getAttribute('data-works'), false)">
                                 Встать в очередь
                             </button>
                         </div>
@@ -144,8 +144,8 @@
                     </select>
                     <label><input type="checkbox" name="is_hurry" id="isHurry"> Я тороплюсь</label>
                     <br>
-                    <button type="submit" class="join-submit-btn">Подтвердить</button>
-                    <button type="button" onclick="closeJoinModal()">Отмена</button>
+                    <button type="submit" class="btn btn-success mt-3">Подтвердить</button>
+                    <button type="button" class="btn btn-secondary mt-3" onclick="closeJoinModal()">Отмена</button>
                 </form>
             </div>
         </div>
@@ -210,16 +210,18 @@
 
     <script>
         // Функции для модальных окон
-        async function openJoinModal(workId, defaultLabName, availableWorks) {
-            console.log('openJoinModal called with:', {workId, defaultLabName, availableWorks});
+        async function openJoinModal(workId, defaultLabName, availableWorks, isFromSubjects = false) {
+            console.log('openJoinModal called with:', {workId, defaultLabName, availableWorks, isFromSubjects});
             document.getElementById('joinModal').style.display = 'block';
             const select = document.getElementById('joinWorkId');
             select.innerHTML = '<option value="" disabled selected>Выберите лабу</option>';
+            
             if (!availableWorks || availableWorks.trim() === '') {
                 showToast('Нет доступных лабораторных работ для записи.', 3000);
                 closeJoinModal();
                 return;
             }
+
             const works = availableWorks.split(',').map(workStr => {
                 const parts = workStr.split('|').map(s => s.trim());
                 if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
@@ -227,20 +229,27 @@
                 }
                 return null;
             }).filter(Boolean);
+
             console.log('Parsed works:', works);
             if (works.length === 0) {
                 showToast('Нет доступных лабораторных работ для записи.', 3000);
                 closeJoinModal();
                 return;
             }
+
             works.forEach((work, idx) => {
                 const option = document.createElement('option');
                 option.value = work.id;
                 option.text = work.name;
-                if (idx === 0) option.selected = true;
+                // Если открываем из "Мои предметы", выбираем конкретную лабу
+                // Иначе выбираем первую лабу из списка
+                if ((isFromSubjects && work.id === workId.toString()) || (!isFromSubjects && idx === 0)) {
+                    option.selected = true;
+                }
                 select.appendChild(option);
             });
-            document.getElementById('joinForm').action = "{% url 'join_queue' 0 %}".replace('0', works[0].id);
+            
+            document.getElementById('joinForm').action = "{% url 'join_queue' 0 %}".replace('0', isFromSubjects ? workId : works[0].id);
         }
     
         function closeJoinModal() {
@@ -291,7 +300,8 @@
             if (form.classList.contains('mark-served-form') || 
                 form.classList.contains('cancel-served-form') || 
                 form.querySelector('.join-submit-btn') || 
-                form.querySelector('.leave-submit-btn')) {
+                form.querySelector('.leave-submit-btn') ||
+                form.id === 'joinForm') {
                 e.preventDefault();
                 
                 const formData = new FormData(form);
@@ -327,6 +337,11 @@
                             fetchCabinetSection('subjects');
                             fetchCabinetSection('queue-cards');
                             showToast(data.message || 'Вы успешно вышли из очереди', 3000);
+                        } else if (form.id === 'joinForm') {
+                            fetchCabinetSection('queues');
+                            fetchCabinetSection('subjects');
+                            fetchCabinetSection('queue-cards');
+                            showToast(data.message || 'Вы успешно встали в очередь', 3000);
                         }
                         closeJoinModal();
                         closeLeaveModal();
