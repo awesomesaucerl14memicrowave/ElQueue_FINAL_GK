@@ -29,6 +29,7 @@
         <form method="post" id="resendForm" style="margin-top: 10px;">
             {% csrf_token %}
             <input type="hidden" name="resend" value="1">
+            <input type="hidden" name="new_email" value="{{ new_email }}">
             <button type="submit" id="resendBtn">Отправить код повторно</button>
             {% if show_captcha %}
                 <div style="margin-top:10px;">{{ captcha_form.captcha }}</div>
