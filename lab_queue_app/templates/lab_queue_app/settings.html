@@ -62,8 +62,11 @@
     <div>
         <h3>Безопасность</h3>
 
-        <p><strong>Email:</strong> {{ request.user.email }}</p>
-        <a href="#" class="button">Сменить Email</a><br><br>
+        <div>
+            <label>Текущий email: {{ user.email }}</label>
+            <a href="{% url 'change_email' %}" class="btn btn-primary" style="margin-left:10px;">Сменить email</a>
+          </div>
+          
 
         {% if profile.telegram_id %}
             <p><strong>Telegram ID:</strong> {{ profile.telegram_id }}</p>

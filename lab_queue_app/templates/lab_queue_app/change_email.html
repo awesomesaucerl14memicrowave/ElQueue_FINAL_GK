@@ -1,0 +1,96 @@
+{% extends 'lab_queue_app/base.html' %}
+{% block title %}Смена почты{% endblock %}
+{% block content %}
+    <h2>Смена почты</h2>
+
+    {% if error %}
+        <p style="color: red;">{{ error }}</p>
+    {% endif %}
+    {% if message %}
+        <p style="color: green;">{{ message }}</p>
+        <p style="color: orange;">Внимание: используйте только последний полученный код! Все предыдущие коды больше не действуют.</p>
+    {% endif %}
+
+    <form method="post" id="sendForm">
+        {% csrf_token %}
+        <label>Новый email:
+            <input type="email" name="new_email" id="id_email" value="{{ new_email }}" required>
+        </label><br>
+        <button type="submit" name="send_code" id="sendBtn" {% if same_email %}disabled{% endif %}>
+            {% if resend_sent or seconds_left > 0 %}
+                Отправить код повторно
+            {% else %}
+                Отправить код
+            {% endif %}
+        </button>
+    </form>
+
+    {% if show_resend %}
+        <form method="post" id="resendForm" style="margin-top: 10px;">
+            {% csrf_token %}
+            <input type="hidden" name="resend" value="1">
+            <button type="submit" id="resendBtn">Отправить код повторно</button>
+            {% if show_captcha %}
+                <div style="margin-top:10px;">{{ captcha_form.captcha }}</div>
+                <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+            {% endif %}
+        </form>
+    {% endif %}
+
+    <form method="post" id="codeForm" style="margin-top: 10px;">
+        {% csrf_token %}
+        <label>Код подтверждения:
+            <input type="text" name="code" id="id_code" maxlength="6" pattern="\d{6}" inputmode="numeric" autocomplete="one-time-code" required>
+        </label><br>
+        <button type="submit">Подтвердить</button>
+    </form>
+
+    <div id="timer" style="margin-top: 10px;"></div>
+
+    <script>
+        let secondsLeft = {{ seconds_left|default:0 }};
+        const resendTimeout = {{ resend_timeout|default:60 }};
+        const timerDiv = document.getElementById('timer');
+        const resendForm = document.getElementById('resendForm');
+        const sendBtn = document.getElementById('sendBtn');
+        const codeInput = document.getElementById('id_code');
+        const codeForm = document.getElementById('codeForm');
+        const emailInput = document.getElementById('id_email');
+
+        function updateTimer() {
+            if (secondsLeft > 0) {
+                if (resendForm) resendForm.style.display = 'none';
+                sendBtn.disabled = true;
+                timerDiv.textContent = 'Повторная отправка кода будет доступна через ' + secondsLeft + ' сек.';
+                secondsLeft--;
+                setTimeout(updateTimer, 1000);
+            } else {
+                if (resendForm) resendForm.style.display = '';
+                sendBtn.disabled = false;
+                timerDiv.textContent = '';
+            }
+        }
+
+        updateTimer();
+
+        // Автоматическая отправка формы, если ввели 6 цифр
+        codeInput.addEventListener('input', function () {
+            if (/^\d{6}$/.test(codeInput.value)) {
+                codeForm.submit();
+            }
+        });
+
+        // Проверка: если введённый email совпадает с текущим
+        const currentEmail = '{{ user.email|escapejs }}';
+        emailInput.addEventListener('input', function () {
+            const enteredEmail = emailInput.value.trim();
+            if (enteredEmail.toLowerCase() === currentEmail.toLowerCase()) {
+                sendBtn.disabled = true;
+                sendBtn.textContent = 'Нельзя ввести текущий email';
+            } else {
+                sendBtn.disabled = false;
+                sendBtn.textContent = secondsLeft > 0 ? 'Отправить код повторно' : 'Отправить код';
+            }
+        });
+    </script>
+{% endblock %}

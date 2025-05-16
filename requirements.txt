@@ -1,8 +1,5 @@
-asgiref==3.8.1
-Django==5.2
-sqlparse==0.5.3
-python-telegram-bot==20.8
-django-telegram-bot==1.0.0
+Django
+django-telegram-bot
 django-recaptcha==3.0.0
 Pillow==10.2.0
 python-dotenv==1.0.1

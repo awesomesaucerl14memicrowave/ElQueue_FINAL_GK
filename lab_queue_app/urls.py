@@ -6,6 +6,7 @@ urlpatterns = [
     path('', views.index, name='index'),
     path('cabinet/', views.cabinet, name='cabinet'),
     path('settings/', views.user_settings, name='user_settings'),
+    path('settings/change-email/', views.change_email, name='change_email'),
     path('login/', auth_views.LoginView.as_view(template_name='lab_queue_app/login.html'), name='login'),
     path('logout/', views.logout_view, name='logout'),
     path('register/', views.register_username_password, name='register'),

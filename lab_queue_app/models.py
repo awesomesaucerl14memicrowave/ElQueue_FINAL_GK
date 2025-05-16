@@ -1,3 +1,6 @@
+from django.utils import timezone
+from datetime import timedelta
+import random
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import FileExtensionValidator
@@ -148,3 +151,35 @@ class TelegramBindToken(models.Model):
 
     def __str__(self):
         return f"Token {self.token} for {self.user.username}"
+    
+
+
+class EmailChangeCode(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    new_email = models.EmailField()
+    code = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+    used = models.BooleanField(default=False)
+
+    def is_expired(self):
+        return timezone.now() > self.created_at + timedelta(minutes=10)
+
+    @staticmethod
+    def generate_code():
+        return f"{random.randint(0, 999999):06d}"
+    
+
+class EmailChangeAttempt(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='email_change_attempt')
+    resend_count = models.PositiveIntegerField(default=0)
+    last_sent = models.DateTimeField(null=True, blank=True)
+
+    def reset(self):
+        self.attempts = 0
+        self.last_attempt = timezone.now()
+        self.save()
+
+    def increment(self):
+        self.attempts += 1
+        self.last_attempt = timezone.now()
+        self.save()

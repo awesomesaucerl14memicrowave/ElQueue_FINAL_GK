@@ -1,9 +1,10 @@
+import time
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import login, logout as auth_logout
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
 from .forms import CustomUserCreationForm, ResendCaptchaForm
-from .models import UserProfile, Subject, UserSubjectPreference, AvatarImage, PracticalWork, WaitingListParticipant, \
+from .models import EmailChangeAttempt, UserProfile, Subject, UserSubjectPreference, AvatarImage, PracticalWork, WaitingListParticipant, \
     Schedule, StudyGroup, UserStudyGroup, TelegramBindToken, StudyGroupSubject
 from django.core.files.storage import FileSystemStorage
 from datetime import datetime, timedelta
@@ -374,19 +375,21 @@ def register_verification_code(request):
     if 'register_data' not in request.session:
         return redirect('register')
 
-    email = request.session['register_data'].get('email', '')
-    resend_timeout = settings.VERIFICATION_CODE_RESEND_TIMEOUT
+    register_data = request.session['register_data']
+    email = register_data.get('email', '')
     now = int(timezone.now().timestamp())
-    last_sent = request.session['register_data'].get('last_code_sent', 0)
+    resend_timeout = settings.VERIFICATION_CODE_RESEND_TIMEOUT
+
+    last_sent = register_data.get('last_code_sent', 0)
     seconds_left = max(0, last_sent + resend_timeout - now)
 
     # --- Антиспам ---
     attempts = request.session.get('verification_resend_attempts', [])
-    # Удаляем старые попытки (старше 10 минут)
     attempts = [t for t in attempts if now - t < 600]
     request.session['verification_resend_attempts'] = attempts
     show_captcha = len(attempts) >= 3
     max_attempts = 5
+
     error = None
     captcha_form = None
 
@@ -401,9 +404,9 @@ def register_verification_code(request):
                     'show_captcha': show_captcha,
                     'captcha_form': None
                 })
-            # Если нужно капчу, проверяем её
+
             if show_captcha:
-                captcha_form = ResendCaptchaForm(request.POST or None)
+                captcha_form = ResendCaptchaForm(request.POST)
                 if not captcha_form.is_valid():
                     return render(request, 'lab_queue_app/register_verification_code.html', {
                         'email': email,
@@ -413,19 +416,22 @@ def register_verification_code(request):
                         'show_captcha': show_captcha,
                         'captcha_form': captcha_form
                     })
-            # Увеличиваем таймер с каждой попыткой
-            resend_timeout_dynamic = resend_timeout + 10 * len(attempts)
+
+            # Генерация нового кода
             code = str(random.randint(100000, 999999))
-            request.session['register_data']['code'] = code
-            request.session['register_data']['last_code_sent'] = now
+            register_data['code'] = code
+            register_data['last_code_sent'] = now
+            request.session['register_data'] = register_data
             request.session.modified = True
+
             attempts.append(now)
             request.session['verification_resend_attempts'] = attempts
-            print(f"Код подтверждения для {email}: {code}")
+
+            # Отправка письма
             try:
                 send_mail(
                     'Код подтверждения',
-                    f'Ваш новый код подтверждения: {code}',
+                    f'Ваш код подтверждения: {code}',
                     None,
                     [email],
                     fail_silently=False,
@@ -434,32 +440,36 @@ def register_verification_code(request):
                 return render(request, 'lab_queue_app/register_verification_code.html', {
                     'email': email,
                     'error': f'Не удалось отправить письмо: {e}',
-                    'seconds_left': resend_timeout_dynamic,
-                    'resend_timeout': resend_timeout_dynamic,
+                    'seconds_left': resend_timeout,
+                    'resend_timeout': resend_timeout,
                     'show_captcha': show_captcha,
                     'captcha_form': captcha_form
                 })
-            seconds_left = resend_timeout_dynamic
+
+            seconds_left = resend_timeout
             return render(request, 'lab_queue_app/register_verification_code.html', {
                 'email': email,
                 'message': 'Код отправлен повторно!',
-                'seconds_left': seconds_left,
-                'resend_timeout': resend_timeout_dynamic,
-                'show_captcha': show_captcha,
-                'captcha_form': captcha_form
-            })
-        # Обычная проверка кода
-        code = request.POST.get('code')
-        stored_code = request.session['register_data'].get('code')
-        if not stored_code:
-            return render(request, 'lab_queue_app/register_verification_code.html', {
-                'email': email,
-                'error': 'Код подтверждения не был сгенерирован. Пожалуйста, вернитесь на предыдущий шаг.',
                 'seconds_left': seconds_left,
                 'resend_timeout': resend_timeout,
                 'show_captcha': show_captcha,
                 'captcha_form': captcha_form
             })
+
+        # --- Проверка кода ---
+        code = request.POST.get('code')
+        stored_code = register_data.get('code')
+
+        if not stored_code:
+            return render(request, 'lab_queue_app/register_verification_code.html', {
+                'email': email,
+                'error': 'Код не был сгенерирован. Вернитесь на шаг регистрации.',
+                'seconds_left': seconds_left,
+                'resend_timeout': resend_timeout,
+                'show_captcha': show_captcha,
+                'captcha_form': captcha_form
+            })
+
         if code != stored_code:
             return render(request, 'lab_queue_app/register_verification_code.html', {
                 'email': email,
@@ -469,12 +479,12 @@ def register_verification_code(request):
                 'show_captcha': show_captcha,
                 'captcha_form': captcha_form
             })
-        # Успешно: создаём пользователя
-        register_data = request.session['register_data']
+
+        # --- Успешная регистрация ---
         user = User.objects.create_user(
             username=register_data['username'],
             password=register_data['password'],
-            email=register_data['email']
+            email=email
         )
         UserProfile.objects.create(user=user)
         login(request, user)
@@ -485,8 +495,9 @@ def register_verification_code(request):
         'seconds_left': seconds_left,
         'resend_timeout': resend_timeout,
         'show_captcha': show_captcha,
-        'captcha_form': captcha_form
+        'captcha_form': ResendCaptchaForm() if show_captcha else None
     })
+
 
 def register_telegram_choice(request):
     if request.method == 'POST':
@@ -734,3 +745,108 @@ def queue_details(request, work_id):
         'user_position': user_position,
     }
     return render(request, 'lab_queue_app/queue_details.html', context)
+
+
+import random
+from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
+from django.utils import timezone
+from django.conf import settings
+from django.core.mail import send_mail
+from .forms import ResendCaptchaForm  # у тебя уже есть эта форма
+
+# Ограничения
+RESEND_TIMEOUT = settings.VERIFICATION_CODE_RESEND_TIMEOUT  # по умолчанию 60 сек
+CAPTCHA_AFTER = 3  # показываем капчу после N неудачных ресендов
+MAX_RESENDS = 5    # блокируем после M попыток
+ATTEMPT_WINDOW = 600  # сек, окно «неудачных» для капчи
+BASE_TIMEOUT = settings.VERIFICATION_CODE_RESEND_TIMEOUT  # обычно 60
+
+@login_required
+def change_email(request):
+    now = int(time.time())
+    session_key = 'email_change_data'
+    data = request.session.get(session_key, {})
+
+    if 'email' not in data:
+        data['email'] = ''
+        data['code'] = ''
+        data['last_code_sent'] = 0
+        data['attempts'] = []
+
+    # Обновляем сессию
+    request.session[session_key] = data
+    request.session.modified = True
+
+    email = data.get('email', '')
+    seconds_left = max(0, data['last_code_sent'] + settings.VERIFICATION_CODE_RESEND_TIMEOUT - now)
+    show_captcha = len(data['attempts']) >= 3
+    captcha_form = ResendCaptchaForm(request.POST or None) if show_captcha else None
+    code = request.POST.get('code')
+    resend_requested = 'resend' in request.POST
+    new_email = request.POST.get('new_email', email)
+    error, message = None, None
+
+    # Проверка кода
+    if request.method == 'POST' and not resend_requested and code:
+        if code != data.get('code'):
+            error = 'Неверный код.'
+        else:
+            if User.objects.filter(email=data['email']).exclude(id=request.user.id).exists():
+                error = 'Пользователь с такой почтой уже существует.'
+            else:
+                request.user.email = data['email']
+                request.user.save()
+                request.session.pop(session_key, None)
+                messages.success(request, 'Почта успешно изменена.')
+                return redirect('user_settings')
+
+    # Повторная отправка
+    if resend_requested or ('send_code' in request.POST):
+        if new_email == request.user.email:
+            error = 'Новый email совпадает с текущим.'
+        elif User.objects.filter(email=new_email).exclude(id=request.user.id).exists():
+            error = 'Пользователь с такой почтой уже зарегистрирован.'
+        elif len(data['attempts']) >= 5:
+            error = 'Слишком много попыток. Попробуйте позже.'
+        elif show_captcha and captcha_form and not captcha_form.is_valid():
+            error = 'Подтвердите, что вы не робот.'
+        elif seconds_left > 0:
+            error = f'Повторная отправка будет доступна через {seconds_left} секунд.'
+        else:
+            new_code = str(random.randint(100000, 999999))
+            data.update({
+                'email': new_email,
+                'code': new_code,
+                'last_code_sent': now,
+            })
+            data['attempts'].append(now)
+            request.session[session_key] = data
+            request.session.modified = True
+
+            # Печать кода в консоль
+            print(f'Код для {new_email}: {new_code}')
+
+            try:
+                send_mail(
+                    'Код подтверждения смены почты',
+                    f'Ваш код подтверждения: {new_code}',
+                    None,
+                    [new_email],
+                    fail_silently=False
+                )
+                message = 'Код отправлен.'
+            except Exception as e:
+                error = f'Ошибка при отправке: {e}'
+
+            seconds_left = settings.VERIFICATION_CODE_RESEND_TIMEOUT + 10 * (len(data["attempts"]) - 1)
+
+    return render(request, 'lab_queue_app/change_email.html', {
+        'email': data['email'],
+        'new_email': new_email,
+        'seconds_left': seconds_left,
+        'show_captcha': show_captcha,
+        'captcha_form': captcha_form,
+        'error': error,
+        'message': message
+    })

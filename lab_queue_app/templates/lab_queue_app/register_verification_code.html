@@ -1,62 +1,67 @@
 {% extends 'lab_queue_app/base.html' %}
-{% block title %}Регистрация - Подтверждение кода{% endblock %}
+{% block title %}Регистрация — Подтверждение{% endblock %}
 {% block content %}
-    <h2>Регистрация - Подтверждение кода</h2>
-    {% if error %}
-        <p style="color: red;">{{ error }}</p>
-    {% endif %}
+    <h2>Регистрация — Подтверждение почты</h2>
+    {% if error %}<p style="color: red;">{{ error }}</p>{% endif %}
     {% if message %}
         <p style="color: green;">{{ message }}</p>
-        <p style="color: orange;">Внимание: используйте только последний полученный код! Все предыдущие коды больше не действуют.</p>
+        <p style="color: orange;">Внимание: используйте только последний полученный код.</p>
     {% endif %}
-    <form method="post" id="codeForm">
+
+    <form method="post" id="resendForm">
         {% csrf_token %}
-        <label>Email: <input type="email" name="email" value="{{ email }}"></label><br>
-        <label>Код подтверждения: <input type="text" name="code" id="id_code" required pattern="\d{6}" maxlength="6" inputmode="numeric" autocomplete="one-time-code"></label><br>
-        <button type="submit">Продолжить</button>
-    </form>
-    <form method="post" id="resendForm" style="margin-top: 10px; display: none;">
-        {% csrf_token %}
+        <p>Email: <strong>{{ email }}</strong></p>
         <input type="hidden" name="resend" value="1">
-        <button type="submit" id="resendBtn">Отправить код повторно</button>
+        <button type="submit" id="resendBtn" {% if seconds_left > 0 %}disabled{% endif %}>
+            {% if seconds_left > 0 %}Отправить код повторно{% else %}Отправить код{% endif %}
+        </button>
         {% if show_captcha %}
-            <div style="margin-top:10px;">{{ captcha_form.captcha }}</div>
+            <div style="margin-top: 10px;">{{ captcha_form.captcha }}</div>
             <script src="https://www.google.com/recaptcha/api.js" async defer></script>
         {% endif %}
     </form>
+
+    <form method="post" id="codeForm" style="margin-top: 10px;">
+        {% csrf_token %}
+        <label>Код подтверждения:
+            <input type="text" name="code" id="id_code" maxlength="6" pattern="\d{6}" required inputmode="numeric" autocomplete="one-time-code">
+        </label><br>
+        <button type="submit">Подтвердить</button>
+    </form>
+
     <div id="timer" style="margin-top: 10px;"></div>
+
     <script>
         let secondsLeft = Number({{ seconds_left|default:0 }});
         const resendTimeout = Number({{ resend_timeout|default:60 }});
-        const timerDiv = document.getElementById('timer');
-        const resendForm = document.getElementById('resendForm');
         const resendBtn = document.getElementById('resendBtn');
+        const timerDiv = document.getElementById('timer');
         const codeInput = document.getElementById('id_code');
         const codeForm = document.getElementById('codeForm');
-    
+
         function updateTimer() {
             if (secondsLeft > 0) {
-                resendForm.style.display = 'none';
-                timerDiv.textContent = 'Повторная отправка кода будет доступна через ' + secondsLeft + ' сек.';
+                resendBtn.disabled = true;
+                resendBtn.textContent = "Отправить код повторно";
+                timerDiv.textContent = "Повторная отправка доступна через " + secondsLeft + " сек.";
                 secondsLeft--;
                 setTimeout(updateTimer, 1000);
             } else {
-                timerDiv.textContent = '';
-                resendForm.style.display = '';
+                resendBtn.disabled = false;
+                resendBtn.textContent = "Отправить код повторно";
+                timerDiv.textContent = "";
             }
         }
+
         updateTimer();
-        resendForm.addEventListener('submit', function() {
-            resendForm.style.display = 'none';
-            timerDiv.textContent = 'Код отправлен. Подождите...';
-            secondsLeft = resendTimeout;
-            setTimeout(updateTimer, 1000);
-        });
-        // Автосабмит при 6 цифрах
+
         codeInput.addEventListener('input', function() {
             if (/^\d{6}$/.test(codeInput.value)) {
                 codeForm.submit();
             }
         });
+
+        // Уведомление в консоли — для тестов
+        console.log("Код для {{ email }}: {{ request.session.register_data.code }}");
     </script>
 {% endblock %}
