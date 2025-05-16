@@ -260,8 +260,10 @@ def user_settings(request):
         profile.telegram_id = telegram_id
 
         email = request.POST.get('email')
-        request.user.email = email
-        request.user.save()
+        if email:  # Сохраняем email, только если он передан
+            request.user.email = email
+            request.user.save()
+
 
         if 'avatar' in request.FILES:
             avatar_file = request.FILES['avatar']
@@ -280,7 +282,7 @@ def user_settings(request):
             preference.is_visible = is_visible
             preference.save()
 
-        return redirect('settings')
+        return redirect('user_settings')
 
     return render(request, 'lab_queue_app/settings.html', {
         'profile': profile,

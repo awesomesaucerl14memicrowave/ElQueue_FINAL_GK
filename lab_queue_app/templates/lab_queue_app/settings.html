@@ -1,47 +1,128 @@
-{% extends 'lab_queue_app/base.html' %}
-{% load custom_filters %}
-{% block title %}Настройки{% endblock %}
+{% extends "lab_queue_app/base.html" %}
+{% load static %}
+
 {% block content %}
-    <h2>Настройки</h2>
-    <form method="post">
-        {% csrf_token %}
-        {% if profile.avatar %}
-            <img src="{{ profile.avatar.image.url }}" alt="Аватар" style="max-width: 100px;">
-        {% else %}
-            <p>Аватар отсутствует</p>
-        {% endif %}
-        <label>Тема:</label>
-        <select name="theme">
-            <option value="light" {% if profile.theme == 'light' %}selected{% endif %}>Светлая</option>
-            <option value="dark" {% if profile.theme == 'dark' %}selected{% endif %}>Тёмная</option>
-        </select><br>
+<h1>Настройки</h1>
 
-        <label><input type="checkbox" name="email_notifications" {% if profile.email_notifications %}checked{% endif %}> Уведомления по email</label><br>
-        <label><input type="checkbox" name="telegram_notifications" {% if profile.telegram_notifications %}checked{% endif %}> Уведомления в Telegram</label><br>
+<form method="post">
+    {% csrf_token %}
 
-        <label>Telegram ID: <input type="text" name="telegram_id" value="{{ profile.telegram_id|default:'' }}" readonly></label><br>
-        <label>Email: <input type="email" name="email" value="{{ request.user.email|default:'' }}"></label><br>
+    <!-- ===== Раздел: Обучение и очереди ===== -->
+    <div>
+        <h3>Обучение и очереди</h3>
+        <p>Текущая учебная группа: 
+            {% if user_study_group %}
+                {{ user_study_group.study_group.name }}
+            {% else %}
+                Не выбрана
+            {% endif %}
+        </p>
+        
 
-        <label>Учебная группа:
-            <select name="study_group">
-                <option value="">Не выбрано</option>
-                {% for group in study_groups %}
-                    <option value="{{ group.id }}" {% if user_study_group and user_study_group.study_group.id == group.id %}selected{% endif %}>
-                        {{ group.name }}
-                    </option>
-                {% endfor %}
-            </select>
+        <label for="study_group_input">Изменить учебную группу:</label><br>
+        <input type="text" id="study_group_input" name="study_group_name"
+               placeholder="Например: KI23-13B" autocomplete="off">
+
+        <select id="study_group_select" size="5">
+            {% for group in study_groups %}
+                <option value="{{ group.name }}" data-id="{{ group.id }}">{{ group.name }}</option>
+            {% endfor %}
+        </select>
+
+        <input type="hidden" name="study_group" id="study_group_hidden">
+
+        <br><br>
+
+        <label for="subjects_select">Предметы (будут отображаться позже):</label><br>
+        <select id="subjects_select" name="subjects" multiple disabled>
+            {% for subject in subjects %}
+                <option value="{{ subject.id }}">{{ subject.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <br>
+
+    <!-- ===== Раздел: Уведомления ===== -->
+    <div>
+        <h3>Уведомления</h3>
+        <label>
+            <input type="checkbox" name="notify_telegram" {% if profile.notify_telegram %}checked{% endif %}>
+            Уведомления в Telegram
         </label><br>
+        <label>
+            <input type="checkbox" name="notify_email" {% if profile.notify_email %}checked{% endif %}>
+            Уведомления на Email
+        </label>
+    </div>
 
-        <h3>Предметы</h3>
-        {% for subject in subjects %}
-            <label>
-                <input type="checkbox" name="subject_{{ subject.id }}" {% if preferences|get_item:subject.id %}checked{% endif %}>
-                {{ subject.name }}
-            </label><br>
-        {% endfor %}
+    <br>
 
-        <label>Аватар: <input type="file" name="avatar"></label><br>
-        <button type="submit">Сохранить</button>
-    </form>
+    <!-- ===== Раздел: Безопасность ===== -->
+    <div>
+        <h3>Безопасность</h3>
+
+        <p><strong>Email:</strong> {{ request.user.email }}</p>
+        <a href="#" class="button">Сменить Email</a><br><br>
+
+        {% if profile.telegram_id %}
+            <p><strong>Telegram ID:</strong> {{ profile.telegram_id }}</p>
+            <a href="{% url 'register_telegram_link' %}">Сменить Telegram</a>
+        {% else %}
+            <p><strong>Telegram:</strong> Не привязан</p>
+            <a href="{% url 'register_telegram_link' %}">Привязать Telegram</a>
+        {% endif %}
+
+        <br><br>
+        <a ">Сбросить пароль</a>
+    </div>
+
+    <br><br>
+    <button type="submit">Сохранить изменения</button>
+</form>
+
+<!-- ===== JS: Фильтрация групп ===== -->
+<script>
+    const input = document.getElementById("study_group_input");
+    const select = document.getElementById("study_group_select");
+    const hidden = document.getElementById("study_group_hidden");
+
+    function normalize(str) {
+        return str.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/gi, '');
+    }
+
+    function filterOptions() {
+        const filter = normalize(input.value);
+        let anyVisible = false;
+        for (let option of select.options) {
+            const match = normalize(option.text).includes(filter);
+            option.hidden = !match;
+            if (match) anyVisible = true;
+        }
+        select.style.display = anyVisible ? 'block' : 'none';
+    }
+
+    input.addEventListener("focus", () => {
+        for (let option of select.options) {
+            option.hidden = false;
+        }
+        select.style.display = 'block';
+    });
+
+    input.addEventListener("input", filterOptions);
+
+    select.addEventListener("change", function () {
+        input.value = select.value;
+        hidden.value = select.selectedOptions[0].getAttribute('data-id') || '';
+    });
+
+    input.addEventListener("blur", function () {
+        setTimeout(() => select.style.display = 'none', 200);
+        for (let option of select.options) {
+            if (option.value === input.value) {
+                hidden.value = option.getAttribute('data-id') || '';
+            }
+        }
+    });
+</script>
 {% endblock %}
