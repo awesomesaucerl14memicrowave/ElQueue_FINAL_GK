@@ -4,6 +4,12 @@
 {% block content %}
 <h1>Настройки</h1>
 
+{% if messages %}
+    {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+{% endif %}
+
 <form method="post">
     {% csrf_token %}
 
@@ -18,7 +24,6 @@
             {% endif %}
         </p>
         
-
         <label for="study_group_input">Изменить учебную группу:</label><br>
         <input type="text" id="study_group_input" name="study_group_name"
                placeholder="Например: KI23-13B" autocomplete="off">
@@ -47,11 +52,11 @@
     <div>
         <h3>Уведомления</h3>
         <label>
-            <input type="checkbox" name="notify_telegram" {% if profile.notify_telegram %}checked{% endif %}>
+            <input type="checkbox" name="telegram_notifications" {% if profile.telegram_notifications %}checked{% endif %} {% if not profile.telegram_id %}disabled{% endif %}>
             Уведомления в Telegram
         </label><br>
         <label>
-            <input type="checkbox" name="notify_email" {% if profile.notify_email %}checked{% endif %}>
+            <input type="checkbox" name="email_notifications" {% if profile.email_notifications %}checked{% endif %}>
             Уведомления на Email
         </label>
     </div>
@@ -65,19 +70,20 @@
         <div>
             <label>Текущий email: {{ user.email }}</label>
             <a href="{% url 'change_email' %}" class="btn btn-primary" style="margin-left:10px;">Сменить email</a>
-          </div>
-          
+        </div>
 
-        {% if profile.telegram_id %}
-            <p><strong>Telegram ID:</strong> {{ profile.telegram_id }}</p>
-            <a href="{% url 'register_telegram_link' %}">Сменить Telegram</a>
-        {% else %}
-            <p><strong>Telegram:</strong> Не привязан</p>
-            <a href="{% url 'register_telegram_link' %}">Привязать Telegram</a>
-        {% endif %}
+        <div>
+            {% if profile.telegram_id %}
+                <p><strong>Telegram ID:</strong> {{ profile.telegram_id }}</p>
+                <a href="{% url 'telegram_unlink_request' %}" class="btn btn-danger">Отвязать Telegram</a>
+            {% else %}
+                <p><strong>Telegram:</strong> Не привязан</p>
+                <a href="{% url 'telegram_link_request' %}" class="btn btn-primary">Привязать Telegram</a>
+            {% endif %}
+        </div>
 
-        <br><br>
-        <a ">Сбросить пароль</a>
+        <br>
+        <a href="{% url 'password_reset_request' %}">Сбросить пароль</a>
     </div>
 
     <br><br>

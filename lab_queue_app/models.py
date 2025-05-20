@@ -95,7 +95,6 @@ class WaitingListParticipant(models.Model):
     @classmethod
     def recalculate_positions(cls, subject_id):
         """Пересчитывает позиции в очереди для всех активных участников."""
-        # Получаем все активные записи для предмета
         participants = cls.objects.filter(
             practical_work__subject_id=subject_id,
             status='active'
@@ -105,12 +104,10 @@ class WaitingListParticipant(models.Model):
             'join_time'  # Затем по времени входа
         )
         
-        # Обновляем позиции одним запросом
         with transaction.atomic():
             for position, participant in enumerate(participants, 1):
                 cls.objects.filter(id=participant.id).update(list_position=position)
 
-# Сигналы для автоматического пересчёта позиций
 @receiver(post_save, sender=WaitingListParticipant)
 def update_positions_on_save(sender, instance, **kwargs):
     if instance.status == 'active' and not kwargs.get('update_fields'):
@@ -149,10 +146,11 @@ class TelegramBindToken(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     is_used = models.BooleanField(default=False)
 
+    def is_expired(self):
+        return timezone.now() > self.created_at + timedelta(minutes=10)
+
     def __str__(self):
         return f"Token {self.token} for {self.user.username}"
-    
-
 
 class EmailChangeCode(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -167,7 +165,6 @@ class EmailChangeCode(models.Model):
     @staticmethod
     def generate_code():
         return f"{random.randint(0, 999999):06d}"
-    
 
 class EmailChangeAttempt(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='email_change_attempt')
@@ -175,11 +172,42 @@ class EmailChangeAttempt(models.Model):
     last_sent = models.DateTimeField(null=True, blank=True)
 
     def reset(self):
-        self.attempts = 0
-        self.last_attempt = timezone.now()
+        self.resend_count = 0
+        self.last_sent = timezone.now()
         self.save()
 
     def increment(self):
-        self.attempts += 1
-        self.last_attempt = timezone.now()
+        self.resend_count += 1
+        self.last_sent = timezone.now()
+        self.save()
+
+class PasswordResetAttempt(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='password_reset_attempts')
+    resend_count = models.PositiveIntegerField(default=0)
+    last_sent = models.DateTimeField(null=True, blank=True)
+
+    def reset(self):
+        self.resend_count = 0
+        self.last_sent = timezone.now()
+        self.save()
+
+    def increment(self):
+        self.resend_count += 1
+        self.last_sent = timezone.now()
+        self.save()
+
+
+class TelegramChangeAttempt(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='telegram_change_attempt')
+    resend_count = models.PositiveIntegerField(default=0)
+    last_sent = models.DateTimeField(null=True, blank=True)
+
+    def reset(self):
+        self.resend_count = 0
+        self.last_sent = timezone.now()
+        self.save()
+
+    def increment(self):
+        self.resend_count += 1
+        self.last_sent = timezone.now()
         self.save()

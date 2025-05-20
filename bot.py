@@ -43,24 +43,23 @@ async def get_profile_photo(update: Update, context: ContextTypes.DEFAULT_TYPE, 
         return None
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    args = context.args  # Получаем аргументы из /start
+    args = context.args
     if args:
         token_str = args[0]
         try:
-            # Асинхронно получаем токен
             bind_token = await get_bind_token(token=token_str, is_used=False)
+            if bind_token.is_expired():
+                await update.message.reply_text('Токен истёк. Запросите новый.')
+                return
 
-            # Асинхронно получаем пользователя и профиль
             user = await sync_to_async(lambda bt: bt.user)(bind_token)
             profile = await get_user_profile(user)
             chat_id = update.effective_chat.id
 
-            # Обновляем и сохраняем профиль
             profile.telegram_id = str(chat_id)
             await save_profile(profile)
             logger.info(f"Профиль сохранён для пользователя {user.username}, telegram_id: {profile.telegram_id}")
 
-            # Получаем и сохраняем аватарку, если она есть
             photo_file = await get_profile_photo(update, context, chat_id)
             if photo_file:
                 avatar_image = await create_avatar_image(image=photo_file)
@@ -68,7 +67,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await save_profile(profile)
                 logger.info(f"Аватарка сохранена для пользователя {user.username}")
 
-            # Помечаем токен как использованный
             bind_token.is_used = True
             await save_bind_token(bind_token)
             logger.info(f"Токен {token_str} помечен как использованный")
@@ -81,7 +79,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text('Произошла ошибка при привязке.')
     else:
         await update.message.reply_text('Привет! Отправь /start с токеном или используй глубокую ссылку для привязки.')
-
+        
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text('Пожалуйста, используй глубокую ссылку или команду /start с токеном для привязки.')
 

@@ -1,16 +1,19 @@
+import random
 import time
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import login, logout as auth_logout
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
-from .forms import CustomUserCreationForm, ResendCaptchaForm
-from .models import EmailChangeAttempt, UserProfile, Subject, UserSubjectPreference, AvatarImage, PracticalWork, WaitingListParticipant, \
-    Schedule, StudyGroup, UserStudyGroup, TelegramBindToken, StudyGroupSubject
-from django.core.files.storage import FileSystemStorage
-from datetime import datetime, timedelta
+from django.contrib.auth.tokens import PasswordResetTokenGenerator
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.utils.encoding import force_bytes, force_str
 from django.core.mail import send_mail
 from django.contrib import messages
-import random
+from .forms import CustomUserCreationForm, ResendCaptchaForm, PasswordResetRequestForm, PasswordResetConfirmForm
+from .models import EmailChangeAttempt, TelegramChangeAttempt, UserProfile, Subject, UserSubjectPreference, AvatarImage, PracticalWork, WaitingListParticipant, \
+    Schedule, StudyGroup, UserStudyGroup, TelegramBindToken, StudyGroupSubject, PasswordResetAttempt
+from django.core.files.storage import FileSystemStorage
+from datetime import datetime, timedelta
 from django.http import JsonResponse, HttpResponse
 import logging
 from django.utils import timezone
@@ -105,13 +108,12 @@ def get_cabinet_data(request):
         served_count = WaitingListParticipant.objects.filter(
             user=request.user, practical_work__subject=subject, status='served'
         ).count()
-        print(f"Subject: {subject.name}, Served: {served_count}, Total: {total_works}")  # Уже есть
+        print(f"Subject: {subject.name}, Served: {served_count}, Total: {total_works}")
         schedule_info = schedule_info_dict.get(subject.id, {
             'schedule_text': 'Нет расписания',
             'next_date': '',
             'is_running': False
         })
-        # Отладка: убедимся, что данные передаются
         subject_data = {
             'subject': subject,
             'works': works_with_status,
@@ -124,7 +126,6 @@ def get_cabinet_data(request):
         print(f"Передаём в шаблон для {subject.name}: served_count={subject_data['served_count']}, total_works={subject_data['total_works']}")
         subjects_with_works.append(subject_data)
 
-    # Формируем карточки для вставания в очередь (одна карточка на предмет)
     queue_cards = []
     for subject in subjects:
         practical_works_for_subject = PracticalWork.objects.filter(subject=subject).order_by('sequence_number')
@@ -149,7 +150,6 @@ def get_cabinet_data(request):
         queue_cards.append({'no_available_works': True})
 
     user_works = WaitingListParticipant.objects.filter(user=request.user, status='active')
-    # Обогащаем user_works для отображения расписания
     enriched_user_works = []
     for work in user_works:
         subject_id = work.practical_work.subject_id
@@ -179,26 +179,22 @@ def get_schedule_info(slot):
     from datetime import datetime, timedelta
     current_datetime = datetime.now()
     current_time = current_datetime.time()
-    current_weekday = current_datetime.weekday()  # 0 - Понедельник, 6 - Воскресенье
+    current_weekday = current_datetime.weekday()
 
-    # Определение целевого дня недели
-    target_weekday = slot.weekday.order - 1  # Преобразуем 1-7 в 0-6
+    target_weekday = slot.weekday.order - 1
     if target_weekday < 0 or target_weekday > 6:
         target_weekday = 0
 
     start_time = slot.start_time
     end_time = (datetime.combine(current_datetime.date(), start_time) + timedelta(minutes=slot.duration)).time()
 
-    # Проверка, идёт ли пара сейчас
     is_running = (
         target_weekday == current_weekday and
         start_time <= current_time <= end_time
     )
 
-    # Формирование текста расписания
     schedule_text = f"{slot.weekday.name} {start_time.strftime('%H:%M')} - {end_time.strftime('%H:%M')} ({slot.week_type})"
 
-    # Расчет следующей даты
     next_date = None
     if not is_running:
         days_ahead = (target_weekday - current_weekday) % 7
@@ -207,7 +203,6 @@ def get_schedule_info(slot):
 
         next_date_base = current_datetime.date() + timedelta(days=days_ahead)
 
-        # Функция для определения начала учебного года
         def get_academic_year_start(date):
             return datetime(date.year - (1 if date.month < 9 else 0), 9, 1).date()
 
@@ -215,7 +210,6 @@ def get_schedule_info(slot):
         delta_days = (next_date_base - september_first).days
         academic_week_number = (delta_days // 7) + 1 if delta_days >= 0 else 0
 
-        # Корректировка недели
         week_diff = 0
         if slot.week_type == 'even' and academic_week_number % 2 != 0:
             week_diff = 7
@@ -225,7 +219,6 @@ def get_schedule_info(slot):
         next_date = next_date_base + timedelta(days=week_diff)
         next_date = datetime.combine(next_date, start_time)
 
-        # Дополнительная проверка, если дата всё ещё в прошлом
         if next_date <= current_datetime:
             next_date += timedelta(days=7)
 
@@ -261,10 +254,9 @@ def user_settings(request):
         profile.telegram_id = telegram_id
 
         email = request.POST.get('email')
-        if email:  # Сохраняем email, только если он передан
+        if email:
             request.user.email = email
             request.user.save()
-
 
         if 'avatar' in request.FILES:
             avatar_file = request.FILES['avatar']
@@ -312,7 +304,7 @@ def register_username_password(request):
                 send_mail(
                     'Код подтверждения',
                     f'Ваш код подтверждения: {code}',
-                    None,  # Используем DEFAULT_FROM_EMAIL из настроек
+                    None,
                     [email],
                     fail_silently=False,
                 )
@@ -356,7 +348,7 @@ def register_email(request):
             send_mail(
                 'Код подтверждения',
                 f'Ваш код подтверждения: {code}',
-                None,  # Используем DEFAULT_FROM_EMAIL из настроек
+                None,
                 [email],
                 fail_silently=False,
             )
@@ -383,7 +375,6 @@ def register_verification_code(request):
     last_sent = register_data.get('last_code_sent', 0)
     seconds_left = max(0, last_sent + resend_timeout - now)
 
-    # --- Антиспам ---
     attempts = request.session.get('verification_resend_attempts', [])
     attempts = [t for t in attempts if now - t < 600]
     request.session['verification_resend_attempts'] = attempts
@@ -417,7 +408,6 @@ def register_verification_code(request):
                         'captcha_form': captcha_form
                     })
 
-            # Генерация нового кода
             code = str(random.randint(100000, 999999))
             register_data['code'] = code
             register_data['last_code_sent'] = now
@@ -427,7 +417,6 @@ def register_verification_code(request):
             attempts.append(now)
             request.session['verification_resend_attempts'] = attempts
 
-            # Отправка письма
             try:
                 send_mail(
                     'Код подтверждения',
@@ -456,7 +445,6 @@ def register_verification_code(request):
                 'captcha_form': captcha_form
             })
 
-        # --- Проверка кода ---
         code = request.POST.get('code')
         stored_code = register_data.get('code')
 
@@ -480,7 +468,6 @@ def register_verification_code(request):
                 'captcha_form': captcha_form
             })
 
-        # --- Успешная регистрация ---
         user = User.objects.create_user(
             username=register_data['username'],
             password=register_data['password'],
@@ -498,14 +485,13 @@ def register_verification_code(request):
         'captcha_form': ResendCaptchaForm() if show_captcha else None
     })
 
-
 def register_telegram_choice(request):
     if request.method == 'POST':
         if 'skip' in request.POST:
             return redirect('register_study_group')
         if 'link_telegram' in request.POST:
             token = TelegramBindToken.objects.create(user=request.user)
-            bot_username = 'plaki_plaki_prod_bot'  # Замени на имя твоего бота
+            bot_username = 'plaki_plaki_prod_bot'
             deep_link = f"https://t.me/{bot_username}?start={token.token}"
             return redirect(deep_link)
     print(f"Сессия на telegram_choice: {request.session.get('register_data', 'Отсутствует')}")
@@ -515,16 +501,13 @@ def register_telegram_link(request):
     if 'register_data' not in request.session:
         return redirect('register')
 
-    # Проверяем, привязан ли уже Telegram
     if request.user.profile.telegram_id:
         print(f"Telegram уже привязан: {request.user.profile.telegram_id}")
         return redirect('register_study_group')
 
     if request.method == 'POST':
-        # Генерируем токен привязки
         token = TelegramBindToken.objects.create(user=request.user)
-        # Формируем глубокую ссылку
-        bot_username = 'plaki_plaki_prod_bot'  # Замени на имя твоего бота
+        bot_username = 'plaki_plaki_prod_bot'
         deep_link = f"https://t.me/{bot_username}?start={token.token}"
         return render(request, 'lab_queue_app/register_telegram_link.html', {
             'deep_link': deep_link,
@@ -546,16 +529,13 @@ def register_study_group(request):
                 'error': 'Выберите существующую учебную группу.'
             })
 
-        # Пользователь уже создан, профиль уже обновлён ботом
         user = request.user
         profile = user.profile
         profile.save()
 
-        # Привязываем учебную группу
         study_group = StudyGroup.objects.get(id=study_group_id)
         UserStudyGroup.objects.create(user=user, study_group=study_group)
 
-        # Очищаем сессию
         request.session.pop('register_data', None)
 
         return redirect('cabinet')
@@ -580,7 +560,6 @@ def join_queue(request, work_id):
             is_hurry = request.POST.get('is_hurry') == 'on'
             print(f"Is hurry: {is_hurry}")
             
-            # Проверяем, не стоит ли уже пользователь в очереди
             existing_participant = WaitingListParticipant.objects.filter(
                 user=request.user,
                 practical_work_id=work_id,
@@ -593,7 +572,6 @@ def join_queue(request, work_id):
                     'error': 'Вы уже стоите в этой очереди'
                 })
             
-            # Создаем новую запись
             participant = WaitingListParticipant.objects.create(
                 user=request.user,
                 practical_work_id=work_id,
@@ -602,7 +580,6 @@ def join_queue(request, work_id):
                 list_position=0
             )
             
-            # Пересчитываем позиции
             work = PracticalWork.objects.get(id=work_id)
             WaitingListParticipant.recalculate_positions(work.subject_id)
             
@@ -633,7 +610,6 @@ def mark_served(request, work_id):
             if not created:
                 participant.status = 'served'
                 participant.save()
-            # Пересчитываем позиции
             work = PracticalWork.objects.get(id=work_id)
             WaitingListParticipant.recalculate_positions(work.subject_id)
             return JsonResponse({'success': True})
@@ -648,7 +624,6 @@ def cancel_served(request, work_id):
             participant = WaitingListParticipant.objects.filter(user=request.user, practical_work_id=work_id).first()
             if participant:
                 participant.delete()
-            # Пересчитываем позиции
             work = PracticalWork.objects.get(id=work_id)
             WaitingListParticipant.recalculate_positions(work.subject_id)
             return JsonResponse({'success': True})
@@ -674,7 +649,6 @@ def leave_queue(request, work_id):
                     participant.status = 'left'
                 participant.save()
                 
-                # Пересчитываем позиции
                 WaitingListParticipant.recalculate_positions(participant.practical_work.subject_id)
                 
                 return JsonResponse({
@@ -746,22 +720,6 @@ def queue_details(request, work_id):
     }
     return render(request, 'lab_queue_app/queue_details.html', context)
 
-
-import random
-from django.shortcuts import render, redirect
-from django.contrib.auth.decorators import login_required
-from django.utils import timezone
-from django.conf import settings
-from django.core.mail import send_mail
-from .forms import ResendCaptchaForm  # у тебя уже есть эта форма
-
-# Ограничения
-RESEND_TIMEOUT = settings.VERIFICATION_CODE_RESEND_TIMEOUT  # по умолчанию 60 сек
-CAPTCHA_AFTER = 3  # показываем капчу после N неудачных ресендов
-MAX_RESENDS = 5    # блокируем после M попыток
-ATTEMPT_WINDOW = 600  # сек, окно «неудачных» для капчи
-BASE_TIMEOUT = settings.VERIFICATION_CODE_RESEND_TIMEOUT  # обычно 60
-
 @login_required
 def change_email(request):
     now = int(time.time())
@@ -774,7 +732,6 @@ def change_email(request):
         data['last_code_sent'] = 0
         data['attempts'] = []
 
-    # Обновляем сессию
     request.session[session_key] = data
     request.session.modified = True
 
@@ -787,7 +744,6 @@ def change_email(request):
     new_email = request.POST.get('new_email', email)
     error, message = None, None
 
-    # Проверка кода
     if request.method == 'POST' and not resend_requested and code:
         if code != data.get('code'):
             error = 'Неверный код.'
@@ -801,7 +757,6 @@ def change_email(request):
                 messages.success(request, 'Почта успешно изменена.')
                 return redirect('user_settings')
 
-    # Повторная отправка
     if resend_requested or ('send_code' in request.POST):
         if new_email == request.user.email:
             error = 'Новый email совпадает с текущим.'
@@ -824,7 +779,6 @@ def change_email(request):
             request.session[session_key] = data
             request.session.modified = True
 
-            # Печать кода в консоль
             print(f'Код для {new_email}: {new_code}')
 
             try:
@@ -849,4 +803,346 @@ def change_email(request):
         'captcha_form': captcha_form,
         'error': error,
         'message': message
+    })
+
+def password_reset_request(request):
+    now = int(time.time())
+    session_key = 'password_reset_data'
+    data = request.session.get(session_key, {})
+    
+    if 'email' not in data:
+        data['email'] = ''
+        data['last_sent'] = 0
+        data['attempts'] = []
+
+    request.session[session_key] = data
+    request.session.modified = True
+
+    email = data.get('email', '')
+    seconds_left = max(0, data['last_sent'] + settings.VERIFICATION_CODE_RESEND_TIMEOUT - now)
+    show_captcha = len(data['attempts']) >= 3
+    captcha_form = ResendCaptchaForm(request.POST or None) if show_captcha else None
+    error, message = None, None
+
+    if request.method == 'POST':
+        form = PasswordResetRequestForm(request.POST)
+        if form.is_valid():
+            email = form.cleaned_data['email']
+            data['email'] = email
+            request.session[session_key] = data
+            request.session.modified = True
+
+            if seconds_left > 0:
+                error = f'Повторная отправка будет доступна через {seconds_left} секунд.'
+            elif show_captcha and captcha_form and not captcha_form.is_valid():
+                error = 'Подтвердите, что вы не робот.'
+            elif len(data['attempts']) >= 5:
+                error = 'Слишком много попыток. Попробуйте позже.'
+            else:
+                user = User.objects.filter(email=email).first()
+                if user:
+                    token_generator = PasswordResetTokenGenerator()
+                    token = token_generator.make_token(user)
+                    uid = urlsafe_base64_encode(force_bytes(user.pk))
+                    reset_link = request.build_absolute_uri(f'/reset-password/{uid}/{token}/')
+                    
+                    try:
+                        send_mail(
+                            'Сброс пароля',
+                            f'Для сброса пароля перейдите по ссылке: {reset_link}\n\n'
+                            f'Ссылка действительна в течение 2 часов.\n'
+                            f'Если вы не запрашивали сброс пароля, проигнорируйте это письмо.',
+                            None,
+                            [email],
+                            fail_silently=False,
+                        )
+                        reset_attempt, _ = PasswordResetAttempt.objects.get_or_create(user=user)
+                        reset_attempt.increment()
+                        data['last_sent'] = now
+                        data['attempts'].append(now)
+                        request.session[session_key] = data
+                        request.session.modified = True
+                        message = 'Если этот email зарегистрирован, мы отправили вам письмо с инструкциями.'
+                    except Exception as e:
+                        error = f'Ошибка при отправке письма: {e}'
+                else:
+                    message = 'Если этот email зарегистрирован, мы отправили вам письмо с инструкциями.'
+
+                seconds_left = settings.VERIFICATION_CODE_RESEND_TIMEOUT + 10 * (len(data['attempts']) - 1)
+        else:
+            error = 'Пожалуйста, введите корректный email.'
+    else:
+        form = PasswordResetRequestForm()
+
+    return render(request, 'lab_queue_app/password_reset_request.html', {
+        'form': form,
+        'email': email,
+        'seconds_left': seconds_left,
+        'show_captcha': show_captcha,
+        'captcha_form': captcha_form,
+        'error': error,
+        'message': message,
+        'resend_timeout': settings.VERIFICATION_CODE_RESEND_TIMEOUT,
+    })
+
+def password_reset_confirm(request, uidb64, token):
+    try:
+        uid = force_str(urlsafe_base64_decode(uidb64))
+        user = User.objects.get(pk=uid)
+    except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+        user = None
+
+    token_generator = PasswordResetTokenGenerator()
+    if user and token_generator.check_token(user, token):
+        if request.method == 'POST':
+            form = PasswordResetConfirmForm(request.POST)
+            if form.is_valid():
+                user.set_password(form.cleaned_data['password1'])
+                user.save()
+                
+                try:
+                    send_mail(
+                        'Пароль успешно изменён',
+                        'Ваш пароль был успешно изменён. Если это были не вы, срочно свяжитесь с поддержкой.',
+                        None,
+                        [user.email],
+                        fail_silently=False,
+                    )
+                except Exception as e:
+                    messages.warning(request, f'Пароль изменён, но не удалось отправить уведомление: {e}')
+
+                login(request, user)
+                messages.success(request, 'Пароль успешно изменён.')
+                return redirect('user_settings')
+        else:
+            form = PasswordResetConfirmForm()
+        return render(request, 'lab_queue_app/password_reset_confirm.html', {
+            'form': form,
+            'validlink': True,
+        })
+    else:
+        return render(request, 'lab_queue_app/password_reset_confirm.html', {
+            'validlink': False,
+            'error': 'Ссылка недействительна или истек срок её действия.'
+        })
+    
+
+@login_required
+def telegram_link_request(request):
+    """Запрос кода для привязки Telegram."""
+    now = int(timezone.now().timestamp())
+    session_key = 'telegram_link_data'
+    data = request.session.get(session_key, {
+        'code': '',
+        'last_code_sent': 0,
+        'attempts': [],
+    })
+
+    seconds_left = max(0, data['last_code_sent'] + settings.VERIFICATION_CODE_RESEND_TIMEOUT - now)
+    attempts = [t for t in data.get('attempts', []) if now - t < 600]
+    show_captcha = len(attempts) >= 3
+    max_attempts = 5
+    error, message = None, None
+    captcha_form = ResendCaptchaForm(request.POST or None) if show_captcha else None
+
+    if request.method == 'POST':
+        if 'resend' in request.POST:
+            if len(attempts) >= max_attempts:
+                error = 'Слишком много попыток. Попробуйте позже.'
+            elif show_captcha and captcha_form and not captcha_form.is_valid():
+                error = 'Подтвердите, что вы не робот.'
+            elif seconds_left > 0:
+                error = f'Повторная отправка будет доступна через {seconds_left} секунд.'
+            else:
+                code = str(random.randint(100000, 999999))
+                data.update({
+                    'code': code,
+                    'last_code_sent': now,
+                    'attempts': attempts + [now],
+                })
+                request.session[session_key] = data
+                request.session.modified = True
+                print(f"Saved code to session: {code}")  # Отладка
+
+                try:
+                    send_mail(
+                        'Код для привязки Telegram',
+                        f'Ваш код подтверждения: {code}',
+                        None,
+                        [request.user.email],
+                        fail_silently=False,
+                    )
+                    message = 'Код отправлен на ваш email.'
+                    TelegramChangeAttempt.objects.get_or_create(user=request.user)[0].increment()
+                    print(f"Email sent to {request.user.email} with code: {code}")  # Отладка
+                except Exception as e:
+                    error = f'Ошибка при отправке письма: {e}'
+                    print(f"Email sending error: {e}")  # Отладка
+
+                seconds_left = settings.VERIFICATION_CODE_RESEND_TIMEOUT
+
+        return render(request, 'lab_queue_app/telegram_link_code.html', {
+            'email': request.user.email,
+            'seconds_left': seconds_left,
+            'resend_timeout': settings.VERIFICATION_CODE_RESEND_TIMEOUT,
+            'show_captcha': show_captcha,
+            'captcha_form': captcha_form,
+            'error': error,
+            'message': message,
+        })
+
+    return render(request, 'lab_queue_app/telegram_link_code.html', {
+        'email': request.user.email,
+        'seconds_left': seconds_left,
+        'resend_timeout': settings.VERIFICATION_CODE_RESEND_TIMEOUT,
+        'show_captcha': show_captcha,
+        'captcha_form': captcha_form,
+    })
+@login_required
+def telegram_link_verify(request):
+    """Проверка кода и генерация deep link для привязки Telegram."""
+    session_key = 'telegram_link_data'
+    data = request.session.get(session_key, {})
+    code = data.get('code', '')
+    error = None
+
+    print(f"Session data: {data}")  # Отладка: выводим данные сессии
+    print(f"Stored code: {code}")  # Отладка: выводим сохранённый код
+
+    if not code:
+        messages.error(request, 'Код не был сгенерирован. Начните процесс заново.')
+        print("No code in session, redirecting to telegram_link_request")  # Отладка
+        return redirect('telegram_link_request')
+
+    if request.method == 'POST':
+        input_code = request.POST.get('code')
+        print(f"Input code: {input_code}")  # Отладка: выводим введённый код
+        if input_code != code:
+            error = 'Неверный код.'
+            print(f"Code mismatch: {input_code} != {code}")  # Отладка
+        else:
+            token = TelegramBindToken.objects.create(user=request.user)
+            bot_username = 'plaki_plaki_prod_bot'
+            deep_link = f"https://t.me/{bot_username}?start={token.token}"
+            request.session.pop(session_key, None)  # Очищаем сессию
+            TelegramChangeAttempt.objects.get_or_create(user=request.user)[0].reset()
+            print(f"Generated deep link: {deep_link}")  # Отладка
+            return render(request, 'lab_queue_app/register_telegram_link.html', {
+                'deep_link': deep_link,
+                'message': 'Нажмите кнопку ниже, чтобы привязать Telegram.'
+            })
+
+    return render(request, 'lab_queue_app/telegram_link_code.html', {
+        'email': request.user.email,
+        'seconds_left': 0,
+        'resend_timeout': settings.VERIFICATION_CODE_RESEND_TIMEOUT,
+        'show_captcha': False,
+        'error': error,
+    })
+
+@login_required
+def telegram_unlink_request(request):
+    """Запрос кода для отвязки Telegram."""
+    if not request.user.profile.telegram_id:
+        messages.info(request, "Telegram не привязан.")
+        return redirect('user_settings')
+
+    now = int(timezone.now().timestamp())
+    session_key = 'telegram_unlink_data'
+    data = request.session.get(session_key, {
+        'code': '',
+        'last_code_sent': 0,
+        'attempts': [],
+    })
+
+    seconds_left = max(0, data['last_code_sent'] + settings.VERIFICATION_CODE_RESEND_TIMEOUT - now)
+    attempts = [t for t in data.get('attempts', []) if now - t < 600]
+    show_captcha = len(attempts) >= 3
+    max_attempts = 5
+    error, message = None, None
+    captcha_form = ResendCaptchaForm(request.POST or None) if show_captcha else None
+
+    if request.method == 'POST':
+        if 'resend' in request.POST:
+            if len(attempts) >= max_attempts:
+                error = 'Слишком много попыток. Попробуйте позже.'
+            elif show_captcha and captcha_form and not captcha_form.is_valid():
+                error = 'Подтвердите, что вы не робот.'
+            elif seconds_left > 0:
+                error = f'Повторная отправка будет доступна через {seconds_left} секунд.'
+            else:
+                code = str(random.randint(100000, 999999))
+                data.update({
+                    'code': code,
+                    'last_code_sent': now,
+                    'attempts': attempts + [now],
+                })
+                request.session[session_key] = data
+                request.session.modified = True
+
+                try:
+                    send_mail(
+                        'Код для отвязки Telegram',
+                        f'Ваш код подтверждения: {code}',
+                        None,
+                        [request.user.email],
+                        fail_silently=False,
+                    )
+                    message = 'Код отправлен на ваш email.'
+                    TelegramChangeAttempt.objects.get_or_create(user=request.user)[0].increment()
+                except Exception as e:
+                    error = f'Ошибка при отправке письма: {e}'
+
+                seconds_left = settings.VERIFICATION_CODE_RESEND_TIMEOUT
+
+        return render(request, 'lab_queue_app/telegram_unlink_code.html', {
+            'email': request.user.email,
+            'seconds_left': seconds_left,
+            'resend_timeout': settings.VERIFICATION_CODE_RESEND_TIMEOUT,
+            'show_captcha': show_captcha,
+            'captcha_form': captcha_form,
+            'error': error,
+            'message': message,
+        })
+
+    return render(request, 'lab_queue_app/telegram_unlink_code.html', {
+        'email': request.user.email,
+        'seconds_left': seconds_left,
+        'resend_timeout': settings.VERIFICATION_CODE_RESEND_TIMEOUT,
+        'show_captcha': show_captcha,
+        'captcha_form': captcha_form,
+    })
+
+@login_required
+def telegram_unlink_verify(request):
+    """Проверка кода и отвязка Telegram."""
+    session_key = 'telegram_unlink_data'
+    data = request.session.get(session_key, {})
+    code = data.get('code', '')
+    error = None
+
+    if not code:
+        messages.error(request, 'Код не был сгенерирован. Начните процесс заново.')
+        return redirect('telegram_unlink_request')
+
+    if request.method == 'POST':
+        input_code = request.POST.get('code')
+        if input_code != code:
+            error = 'Неверный код.'
+        else:
+            profile = request.user.profile
+            profile.telegram_id = None
+            profile.telegram_notifications = False
+            profile.save()
+            request.session.pop(session_key, None)
+            TelegramChangeAttempt.objects.get_or_create(user=request.user)[0].reset()
+            messages.success(request, "Telegram аккаунт успешно отвязан.")
+            return redirect('user_settings')
+
+    return render(request, 'lab_queue_app/telegram_unlink_code.html', {
+        'email': request.user.email,
+        'seconds_left': 0,
+        'resend_timeout': settings.VERIFICATION_CODE_RESEND_TIMEOUT,
+        'show_captcha': False,
+        'error': error,
     })

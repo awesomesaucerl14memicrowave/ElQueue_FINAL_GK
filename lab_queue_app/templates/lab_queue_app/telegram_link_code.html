@@ -1,0 +1,71 @@
+{% extends 'lab_queue_app/base.html' %}
+{% block title %}Привязка Telegram — Подтверждение{% endblock %}
+{% block content %}
+    <h2>Привязка Telegram — Подтверждение</h2>
+    {% if error %}<p style="color: red;">{{ error }}</p>{% endif %}
+    {% if message %}
+        <p style="color: green;">{{ message }}</p>
+        <p style="color: orange;">Внимание: используйте только последний полученный код.</p>
+    {% endif %}
+
+    <form method="post" id="resendForm">
+        {% csrf_token %}
+        <p>Email: <strong>{{ email }}</strong></p>
+        <input type="hidden" name="resend" value="1">
+        <button type="submit" id="resendBtn" {% if seconds_left > 0 %}disabled{% endif %}>
+            {% if seconds_left > 0 %}Отправить код повторно{% else %}Отправить код{% endif %}
+        </button>
+        {% if show_captcha %}
+            <div style="margin-top: 10px;">{{ captcha_form.captcha }}</div>
+            <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+        {% endif %}
+    </form>
+
+    <form method="post" id="codeForm" style="margin-top: 10px;">
+        {% csrf_token %}
+        <label>Код подтверждения:
+            <input type="text" name="code" id="id_code" maxlength="6" pattern="\d{6}" required inputmode="numeric" autocomplete="one-time-code">
+        </label><br>
+        <button type="submit">Подтвердить</button>
+    </form>
+
+    <div id="timer" style="margin-top: 10px;"></div>
+
+    <script>
+        let secondsLeft = Number({{ seconds_left|default:0 }});
+        const resendTimeout = Number({{ resend_timeout|default:60 }});
+        const resendBtn = document.getElementById('resendBtn');
+        const timerDiv = document.getElementById('timer');
+        const codeInput = document.getElementById('id_code');
+        const codeForm = document.getElementById('codeForm');
+
+        function updateTimer() {
+            if (secondsLeft > 0) {
+                resendBtn.disabled = true;
+                resendBtn.textContent = "Отправить код повторно";
+                timerDiv.textContent = "Повторная отправка доступна через " + secondsLeft + " сек.";
+                secondsLeft--;
+                setTimeout(updateTimer, 1000);
+            } else {
+                resendBtn.disabled = false;
+                resendBtn.textContent = "Отправить код повторно";
+                timerDiv.textContent = "";
+            }
+        }
+
+        updateTimer();
+
+        // Временно отключим автоматическую отправку для отладки
+        codeInput.addEventListener('input', function() {
+            console.log("Введённый код:", codeInput.value);
+            // if (/^\d{6}$/.test(codeInput.value)) {
+            //     console.log("Отправка формы...");
+            //     codeForm.submit();
+            // }
+        });
+
+        codeForm.addEventListener('submit', function(event) {
+            console.log("Форма отправляется с кодом:", codeInput.value);
+        });
+    </script>
+{% endblock %}

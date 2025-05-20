@@ -23,3 +23,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('lab_queue_app.urls')),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+handler403 = 'lab_queue_app.errors.handler403'
+handler404 = 'lab_queue_app.errors.handler404'
+handler500 = 'lab_queue_app.errors.handler500'

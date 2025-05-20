@@ -1,7 +1,12 @@
+{% load static %}
+
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-    <title>{% block title %}{% endblock %}</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Электронная очередь{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
 </head>
 <body>
     <nav>
@@ -9,18 +14,42 @@
         {% if user.is_authenticated %}
             <a href="{% url 'cabinet' %}">Кабинет</a>
             <a href="{% url 'user_settings' %}">Настройки</a>
-            <form method="post" action="{% url 'logout' %}">
+            <form method="post" action="{% url 'logout' %}" id="logout-form" style="display: inline;">
                 {% csrf_token %}
                 <button type="submit">Выйти</button>
             </form>
         {% else %}
-            <a href="{% url 'register' %}">Регистрация</a>  <!-- Используем 'register' -->
+            <a href="{% url 'register' %}">Регистрация</a>
             <a href="{% url 'login' %}">Вход</a>
         {% endif %}
     </nav>
-    <div>
+
+    <main>
         {% block content %}
         {% endblock %}
-    </div>
+    </main>
+
+    <script>
+        // JavaScript fallback for logout form submission
+        document.getElementById('logout-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            fetch(this.action, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': this.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: new FormData(this)
+            }).then(response => {
+                if (response.ok) {
+                    window.location.href = '{% url 'index' %}';
+                } else {
+                    alert('Не удалось выйти. Пожалуйста, попробуйте снова.');
+                }
+            }).catch(error => {
+                console.error('Logout error:', error);
+                alert('Произошла ошибка. Пожалуйста, свяжитесь с поддержкой.');
+            });
+        });
+    </script>
 </body>
 </html>

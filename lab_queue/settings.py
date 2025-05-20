@@ -152,3 +152,5 @@ RECAPTCHA_PRIVATE_KEY = '6Ld7pTUrAAAAAN64o3PFOgmQU-qzDGml1PDSae5-'
 RECAPTCHA_DOMAIN = 'www.google.com'
 
 VERIFICATION_CODE_RESEND_TIMEOUT = 10  # секунд
+
+CUSTOM_ERROR_PAGES = True # True: заменять стандартные страницы ошибок от django на кастомные

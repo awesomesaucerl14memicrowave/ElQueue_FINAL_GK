@@ -1,13 +1,16 @@
 {% extends 'lab_queue_app/base.html' %}
-{% block title %}Регистрация - Привязка Telegram{% endblock %}
+{% block title %}Привязка Telegram{% endblock %}
 {% block content %}
-    <h2>Регистрация - Привязка Telegram</h2>
-    {% if message %}
-        <p>{{ message }}</p>
+    <h2>Привязка Telegram</h2>
+    
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
     {% endif %}
+
     {% if deep_link %}
         <div class="telegram-bind-container">
-            <p>Для завершения регистрации необходимо привязать Telegram аккаунт.</p>
             <p>Нажмите кнопку ниже, чтобы открыть Telegram и привязать аккаунт:</p>
             <a href="{{ deep_link }}" target="_blank" id="telegram-link" class="btn btn-primary">
                 <i class="fab fa-telegram"></i> Открыть Telegram
@@ -16,15 +19,16 @@
                 <i class="fas fa-check-circle"></i> Telegram успешно привязан! Перенаправляем...
             </div>
             <div class="help-text">
-                <p><small>После привязки Telegram, вернитесь на эту страницу. Она обновится автоматически.</small></p>
+                <p><small>После привязки Telegram вернитесь на эту страницу. Она обновится автоматически.</small></p>
             </div>
         </div>
     {% else %}
-        <p>Пожалуйста, нажмите кнопку ниже, чтобы привязать Telegram.</p>
+        <p>Код подтверждения отправлен на ваш email. Пожалуйста, проверьте почту.</p>
+        <a href="{% url 'telegram_link_request' %}" class="btn btn-primary">Вернуться к вводу кода</a>
     {% endif %}
-    <form method="post" action="{% url 'register_telegram_choice' %}" class="mt-3">
+    <form method="post" action="{% url 'user_settings' %}" class="mt-3">
         {% csrf_token %}
-        <button type="submit" class="btn btn-secondary">Вернуться назад</button>
+        <button type="submit" class="btn btn-secondary">Вернуться к настройкам</button>
     </form>
 
     <style>
@@ -57,33 +61,30 @@
     </style>
 
     <script>
-        // Периодически проверяем, привязан ли Telegram
-        function checkTelegramBind() {
-            fetch("{% url 'check_telegram_bind' %}", {
-                method: "GET",
-                headers: {
-                    "X-Requested-With": "XMLHttpRequest"
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.is_bound) {
-                    document.getElementById("status-message").style.display = "block";
-                    setTimeout(() => {
-                        window.location.href = "{% url 'register_study_group' %}";
-                    }, 2000); // Перенаправляем через 2 секунды
-                } else {
-                    setTimeout(checkTelegramBind, 3000); // Проверяем каждые 3 секунды
-                }
-            })
-            .catch(error => {
-                console.error("Ошибка проверки привязки:", error);
-                setTimeout(checkTelegramBind, 3000); // Повторяем проверку
-            });
-        }
-
-        // Начинаем проверку, если есть глубокая ссылка
         {% if deep_link %}
+            function checkTelegramBind() {
+                fetch("{% url 'check_telegram_bind' %}", {
+                    method: "GET",
+                    headers: {
+                        "X-Requested-With": "XMLHttpRequest"
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.is_bound) {
+                        document.getElementById("status-message").style.display = "block";
+                        setTimeout(() => {
+                            window.location.href = "{% url 'user_settings' %}";
+                        }, 2000);
+                    } else {
+                        setTimeout(checkTelegramBind, 3000);
+                    }
+                })
+                .catch(error => {
+                    console.error("Ошибка проверки привязки:", error);
+                    setTimeout(checkTelegramBind, 3000);
+                });
+            }
             checkTelegramBind();
         {% endif %}
     </script>
