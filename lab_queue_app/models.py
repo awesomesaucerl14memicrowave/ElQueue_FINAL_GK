@@ -95,6 +95,7 @@ class WaitingListParticipant(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     practical_work = models.ForeignKey(PracticalWork, on_delete=models.CASCADE)
     join_time = models.DateTimeField(auto_now_add=True)
+    modified_at = models.DateTimeField(auto_now=True)
     is_hurry = models.BooleanField(default=False)
     list_position = models.IntegerField(default=0)
     status = models.CharField(max_length=20, choices=[
@@ -120,7 +121,9 @@ class WaitingListParticipant(models.Model):
         
         with transaction.atomic():
             for position, participant in enumerate(participants, 1):
-                cls.objects.filter(id=participant.id).update(list_position=position)
+                if participant.list_position != position:
+                    participant.list_position = position
+                    participant.save()
 
 @receiver(post_save, sender=WaitingListParticipant)
 def update_positions_on_save(sender, instance, **kwargs):
@@ -224,4 +227,65 @@ class TelegramChangeAttempt(models.Model):
     def increment(self):
         self.resend_count += 1
         self.last_sent = timezone.now()
+        self.save()
+
+class VerificationCodeAttempt(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    code_type = models.CharField(max_length=20)  # 'email', 'telegram', etc.
+    attempts = models.PositiveIntegerField(default=0)
+    last_attempt = models.DateTimeField(auto_now=True)
+    is_blocked = models.BooleanField(default=False)
+    block_until = models.DateTimeField(null=True, blank=True)
+
+    def increment_attempts(self):
+        self.attempts += 1
+        if self.attempts >= 3:
+            self.is_blocked = True
+            self.block_until = timezone.now() + timedelta(minutes=30)
+        self.save()
+
+    def can_attempt(self):
+        if not self.is_blocked:
+            return True
+        if timezone.now() > self.block_until:
+            self.is_blocked = False
+            self.attempts = 0
+            self.save()
+            return True
+        return False
+
+    def reset(self):
+        self.attempts = 0
+        self.is_blocked = False
+        self.block_until = None
+        self.save()
+
+class TelegramVerificationAttempt(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    attempts = models.PositiveIntegerField(default=0)
+    last_attempt = models.DateTimeField(auto_now=True)
+    is_blocked = models.BooleanField(default=False)
+    block_until = models.DateTimeField(null=True, blank=True)
+
+    def increment_attempts(self):
+        self.attempts += 1
+        if self.attempts >= 3:
+            self.is_blocked = True
+            self.block_until = timezone.now() + timedelta(minutes=30)
+        self.save()
+
+    def can_attempt(self):
+        if not self.is_blocked:
+            return True
+        if timezone.now() > self.block_until:
+            self.is_blocked = False
+            self.attempts = 0
+            self.save()
+            return True
+        return False
+
+    def reset(self):
+        self.attempts = 0
+        self.is_blocked = False
+        self.block_until = None
         self.save()

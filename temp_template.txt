@@ -1,0 +1,345 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Плаки плаки продакшн - концепт дизайна</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Иконки Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Кастомные стили -->
+    <style>
+        :root {
+            --beige-main: #F5F0E6;
+            --beige-light: #FAF7F0;
+            --beige-dark: #EBE5D8;
+            --brown-header: #3E2723;
+            --brown-dark: #2A1A16;
+            --accent-primary: #6D4C41;  /* Новый основной цвет - тёмно-бежевый */
+            --accent-secondary: #8D6E63; /* Дополнительный акцент */
+            --text-dark: #333;
+            --text-light: #fff;
+        }
+        
+        body {
+            background-color: var(--beige-main);
+            color: var(--text-dark);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        /* Шапка */
+        .navbar-custom {
+            background: var(--brown-header);
+            padding: 0.8rem 1rem;
+        }
+        
+        .navbar-brand {
+            font-weight: 700;
+            font-size: 1.5rem;
+            color: white !important;
+        }
+        
+        .navbar-brand i {
+            color: var(--accent-secondary);
+            margin-right: 10px;
+        }
+        
+        .nav-link {
+            color: rgba(255, 255, 255, 0.85) !important;
+            font-weight: 500;
+            margin: 0 0.5rem;
+            position: relative;
+        }
+        
+        .nav-link:hover, .nav-link:focus {
+            color: white !important;
+        }
+        
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            bottom: -3px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--accent-secondary);
+            transition: width 0.3s;
+        }
+        
+        .nav-link:hover::after {
+            width: 100%;
+        }
+        
+        /* Основное содержимое */
+        .main-content {
+            flex: 1;
+            padding: 2rem 0;
+        }
+        
+        /* Кастомные карточки */
+        .custom-card {
+            background: var(--beige-light);
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s, box-shadow 0.3s;
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+        }
+        
+        .custom-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        }
+        
+        .card-header-custom {
+            background: var(--accent-primary);
+            color: white;
+            font-weight: 600;
+            padding: 1rem 1.5rem;
+        }
+        
+        /* Кастомные кнопки */
+        .btn-custom {
+            background: var(--accent-primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 0.6rem 1.2rem;
+            font-weight: 500;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .btn-custom:hover {
+            background: var(--brown-header);
+            color: white;
+            transform: translateY(-2px);
+        }
+        
+        .btn-custom:active {
+            transform: translateY(0);
+        }
+        
+        .btn-custom-secondary {
+            background: var(--accent-secondary);
+        }
+        
+        /* Анимации */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .animate-card {
+            animation: fadeInUp 0.6s ease-out forwards;
+            opacity: 0;
+        }
+        
+        .animate-card:nth-child(1) { animation-delay: 0.1s; }
+        .animate-card:nth-child(2) { animation-delay: 0.2s; }
+        .animate-card:nth-child(3) { animation-delay: 0.3s; }
+        
+        /* Подвал */
+        .footer-custom {
+            background: var(--brown-dark);
+            color: var(--text-light);
+            padding: 2rem 0;
+        }
+        
+        .team-member {
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+        
+        .team-member i {
+            font-size: 1.8rem;
+            color: var(--accent-secondary);
+            margin-bottom: 0.5rem;
+        }
+        
+        .copyright {
+            margin-top: 1.5rem;
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        /* Адаптивность */
+        @media (max-width: 768px) {
+            .navbar-brand {
+                font-size: 1.3rem;
+            }
+            
+            .main-content {
+                padding: 1rem 0;
+            }
+            
+            .custom-card {
+                margin-bottom: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Шапка с Bootstrap Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-flask"></i>
+                ElQueue
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#">Главная</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">Очереди</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">Лабораторные</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">Настройки</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- Основное содержимое -->
+    <main class="main-content">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-4 animate-card">
+                    <div class="card custom-card h-100">
+                        <div class="card-header card-header-custom">
+                            <i class="fas fa-list-ol me-2"></i>Мои очереди
+                        </div>
+                        <div class="card-body">
+                            <p class="card-text">Здесь будет список ваших текущих очередей с анимацией загрузки.</p>
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-custom">
+                                    <i class="fas fa-eye me-2"></i>Просмотреть
+                                </button>
+                                <button class="btn btn-custom btn-custom-secondary">
+                                    <i class="fas fa-plus me-2"></i>Добавить
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4 animate-card">
+                    <div class="card custom-card h-100">
+                        <div class="card-header card-header-custom">
+                            <i class="fas fa-flask me-2"></i>Лабораторные работы
+                        </div>
+                        <div class="card-body">
+                            <p class="card-text">Карточки предметов с адаптивным дизайном для мобильных устройств.</p>
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-custom">
+                                    <i class="fas fa-search me-2"></i>Найти работу
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4 animate-card">
+                    <div class="card custom-card h-100">
+                        <div class="card-header card-header-custom">
+                            <i class="fas fa-bolt me-2"></i>Быстрые действия
+                        </div>
+                        <div class="card-body">
+                            <p class="card-text">Интерактивные элементы с современным дизайном.</p>
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-custom">
+                                    <i class="fas fa-sign-in-alt me-2"></i>Войти в очередь
+                                </button>
+                                <button class="btn btn-custom btn-custom-secondary">
+                                    <i class="fas fa-sign-out-alt me-2"></i>Выйти из очереди
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Подвал -->
+    <footer class="footer-custom">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-2 col-6">
+                    <div class="team-member">
+                        <i class="fas fa-user"></i>
+                        <h5>Иван Иванов</h5>
+                        <small>Frontend</small>
+                    </div>
+                </div>
+                <div class="col-md-2 col-6">
+                    <div class="team-member">
+                        <i class="fas fa-user"></i>
+                        <h5>Петр Петров</h5>
+                        <small>Backend</small>
+                    </div>
+                </div>
+                <div class="col-md-2 col-6">
+                    <div class="team-member">
+                        <i class="fas fa-user"></i>
+                        <h5>Сергей Сергеев</h5>
+                        <small>Дизайн</small>
+                    </div>
+                </div>
+                <div class="col-md-2 col-6">
+                    <div class="team-member">
+                        <i class="fas fa-user"></i>
+                        <h5>Анна Аннова</h5>
+                        <small>Тестирование</small>
+                    </div>
+                </div>
+                <div class="col-md-2 col-6">
+                    <div class="team-member">
+                        <i class="fas fa-user"></i>
+                        <h5>Дмитрий Дмитриев</h5>
+                        <small>Аналитика</small>
+                    </div>
+                </div>
+            </div>
+            <div class="text-center copyright">
+                &copy; 2025 - Плаки плаки продакшн
+            </div>
+        </div>
+    </footer>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Инициализация анимаций -->
+    <script>
+        // Анимация карточек при загрузке
+        document.addEventListener('DOMContentLoaded', function() {
+            const cards = document.querySelectorAll('.animate-card');
+            cards.forEach(card => {
+                card.style.opacity = '1';
+            });
+        });
+    </script>
+</body>
+</html>

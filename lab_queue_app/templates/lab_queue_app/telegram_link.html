@@ -1,0 +1,95 @@
+{% extends 'lab_queue_app/base.html' %}
+
+{% block content %}
+<div class="container">
+    <h2>Привязка Telegram</h2>
+    <p>Код подтверждения был отправлен на ваш email: {{ email }}</p>
+    
+    {% if messages %}
+    <div class="messages">
+        {% for message in messages %}
+        <div class="alert {% if message.tags %}alert-{{ message.tags }}{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    
+    {% if is_blocked %}
+    <div class="alert alert-warning">
+        <p>Ввод кода временно заблокирован из-за слишком большого количества неудачных попыток.</p>
+        <p>Попробуйте снова после: {{ block_until|date:"H:i:s" }}</p>
+    </div>
+    {% else %}
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-group">
+            <label for="code">Введите код подтверждения:</label>
+            <input type="text" id="code" name="code" class="form-control" required pattern="[0-9]{6}" maxlength="6">
+        </div>
+        <button type="submit" class="btn btn-primary">Подтвердить</button>
+    </form>
+    {% endif %}
+</div>
+
+<style>
+.container {
+    max-width: 600px;
+    margin: 2rem auto;
+    padding: 1rem;
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-control {
+    width: 100%;
+    padding: 0.5rem;
+    font-size: 1rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.btn {
+    padding: 0.5rem 1rem;
+    font-size: 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.btn-primary {
+    background-color: #007bff;
+    color: white;
+    border: none;
+}
+
+.btn-primary:hover {
+    background-color: #0056b3;
+}
+
+.alert {
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-radius: 4px;
+}
+
+.alert-error {
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+    color: #721c24;
+}
+
+.alert-success {
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+    color: #155724;
+}
+
+.alert-warning {
+    background-color: #fff3cd;
+    border-color: #ffeeba;
+    color: #856404;
+}
+</style>
+{% endblock %} 

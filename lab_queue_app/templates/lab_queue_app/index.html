@@ -75,10 +75,9 @@
                 <select name="work_id" id="joinWorkId">
                     <option value="" disabled selected>Выберите лабу</option>
                 </select>
-                <label><input type="checkbox" name="is_hurry" id="isHurry"> Я тороплюсь</label>
                 <br>
-                <button type="submit" class="join-submit-btn">Подтвердить</button>
-                <button type="button" onclick="closeJoinModal()">Отмена</button>
+                <button type="submit" class="btn btn-success mt-3">Подтвердить</button>
+                <button type="button" class="btn btn-secondary mt-3" onclick="closeJoinModal()">Отмена</button>
             </form>
         </div>
     </div>
@@ -136,7 +135,6 @@
     
         function closeJoinModal() {
             document.getElementById('joinModal').style.display = 'none';
-            document.getElementById('isHurry').checked = false;
         }
     
         function openLeaveModal(workId, labName) {

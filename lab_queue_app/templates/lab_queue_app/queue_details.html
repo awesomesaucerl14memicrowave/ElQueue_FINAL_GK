@@ -20,29 +20,16 @@
                                             <div>
                                                 <span class="badge bg-primary me-2">#{{ participant.list_position }}</span>
                                                 {{ participant.user.get_full_name|default:participant.user.username }}
-                                            </div>
-                                            {% if participant.is_hurry %}
-                                                <span class="badge bg-warning text-dark">
-                                                    <i class="fas fa-bolt"></i> Торопится
+                                                <span class="text-muted ms-2">
+                                                    (Лаба {{ participant.practical_work.sequence_number }} - {{ participant.practical_work.name }})
                                                 </span>
-                                            {% endif %}
-                                        </div>
-                                        <div class="d-flex align-items-center">
-                                            <span class="text-muted me-2">Лабораторная работа {{ participant.practical_work.sequence_number }}:</span>
-                                            {% if participant.practical_work.ekurs_link %}
-                                                <a href="{{ participant.practical_work.ekurs_link }}" target="_blank" class="text-decoration-none">
-                                                    {{ participant.practical_work.name }}
-                                                    <i class="fas fa-external-link-alt ms-1"></i>
-                                                </a>
-                                            {% else %}
-                                                {{ participant.practical_work.name }}
-                                            {% endif %}
+                                            </div>
                                         </div>
                                     </div>
                                 {% endfor %}
                             </div>
                         {% else %}
-                            <p class="text-muted mb-0">В очереди пока никого нет</p>
+                            <p class="text-muted">В очереди пока никого нет</p>
                         {% endif %}
                     </div>
                 </div>
@@ -107,7 +94,6 @@
             <select name="work_id" id="joinWorkId">
                 <option value="" disabled selected>Выберите лабу</option>
             </select>
-            <label><input type="checkbox" name="is_hurry" id="isHurry"> Я тороплюсь</label>
             <br>
             <button type="submit" class="btn btn-success mt-3">Подтвердить</button>
             <button type="button" class="btn btn-secondary mt-3" onclick="closeJoinModal()">Отмена</button>
@@ -196,6 +182,24 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
+
+    // Функция для обновления списка участников
+    function updateParticipantsList() {
+        fetch(window.location.href)
+            .then(response => response.text())
+            .then(html => {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const newList = doc.querySelector('.list-group');
+                const currentList = document.querySelector('.list-group');
+                if (newList && currentList) {
+                    currentList.innerHTML = newList.innerHTML;
+                }
+            });
+    }
+
+    // Обновляем список каждые 5 секунд
+    setInterval(updateParticipantsList, 5000);
 });
 
 function openJoinModal(workId, defaultLabName, availableWorks) {
@@ -224,7 +228,6 @@ function openJoinModal(workId, defaultLabName, availableWorks) {
 
 function closeJoinModal() {
     document.getElementById('joinModal').style.display = 'none';
-    document.getElementById('isHurry').checked = false;
 }
 
 function openLeaveModal(workId, labName) {
