@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'channels',
     'lab_queue_app',
     'captcha',
 ]
@@ -154,3 +155,14 @@ RECAPTCHA_DOMAIN = 'www.google.com'
 VERIFICATION_CODE_RESEND_TIMEOUT = 10  # секунд
 
 CUSTOM_ERROR_PAGES = True # True: заменять стандартные страницы ошибок от django на кастомные
+
+# Настройки для Channels
+ASGI_APPLICATION = 'lab_queue.asgi.application'
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer'
+    }
+}
+
+# Настройки для Telegram бота
+TELEGRAM_BOT_TOKEN = 'YOUR_BOT_TOKEN'  # Замените на ваш токен

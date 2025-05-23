@@ -23,8 +23,22 @@ class UserProfile(models.Model):
     can_hurry = models.BooleanField(default=True)
     avatar = models.ForeignKey(AvatarImage, on_delete=models.SET_NULL, blank=True, null=True, related_name='users')
     theme = models.CharField(max_length=50, default='light')
-    email_notifications = models.BooleanField(default=True)
+    
+    # Основные переключатели уведомлений
+    browser_notifications = models.BooleanField(default=True)
     telegram_notifications = models.BooleanField(default=False)
+    
+    # Браузерные уведомления
+    browser_queue_join_leave = models.BooleanField(default=True)
+    browser_position_change = models.BooleanField(default=True)
+    browser_position_3_2 = models.BooleanField(default=True)
+    browser_position_1 = models.BooleanField(default=True)
+    
+    # Telegram уведомления
+    telegram_queue_join_leave = models.BooleanField(default=True)
+    telegram_position_change = models.BooleanField(default=True)
+    telegram_position_3_2 = models.BooleanField(default=True)
+    telegram_position_1 = models.BooleanField(default=True)
 
     def __str__(self):
         return f"Profile of {self.user.username}"

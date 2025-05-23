@@ -245,45 +245,45 @@ def user_settings(request):
         if theme in ['light', 'dark']:
             profile.theme = theme
 
-        email_notifications = request.POST.get('email_notifications') == 'on'
-        telegram_notifications = request.POST.get('telegram_notifications') == 'on'
-        profile.email_notifications = email_notifications
-        profile.telegram_notifications = telegram_notifications
+        # Основные переключатели уведомлений
+        profile.browser_notifications = request.POST.get('browser_notifications') == 'on'
+        profile.telegram_notifications = request.POST.get('telegram_notifications') == 'on'
 
-        telegram_id = request.POST.get('telegram_id')
-        profile.telegram_id = telegram_id
+        # Браузерные уведомления
+        profile.browser_queue_join_leave = request.POST.get('browser_queue_join_leave') == 'on'
+        profile.browser_position_change = request.POST.get('browser_position_change') == 'on'
+        profile.browser_position_3_2 = request.POST.get('browser_position_3_2') == 'on'
+        profile.browser_position_1 = request.POST.get('browser_position_1') == 'on'
 
-        email = request.POST.get('email')
-        if email:
-            request.user.email = email
-            request.user.save()
-
-        if 'avatar' in request.FILES:
-            avatar_file = request.FILES['avatar']
-            avatar_image = AvatarImage.objects.create(image=avatar_file)
-            profile.avatar = avatar_image
+        # Telegram уведомления
+        profile.telegram_queue_join_leave = request.POST.get('telegram_queue_join_leave') == 'on'
+        profile.telegram_position_change = request.POST.get('telegram_position_change') == 'on'
+        profile.telegram_position_3_2 = request.POST.get('telegram_position_3_2') == 'on'
+        profile.telegram_position_1 = request.POST.get('telegram_position_1') == 'on'
 
         profile.save()
 
+        # Обработка учебной группы
         study_group_id = request.POST.get('study_group')
-        if study_group_id and StudyGroup.objects.filter(id=study_group_id).exists():
-            UserStudyGroup.objects.update_or_create(user=request.user, defaults={'study_group_id': study_group_id})
+        if study_group_id:
+            UserStudyGroup.objects.filter(user=request.user).delete()
+            study_group = StudyGroup.objects.get(id=study_group_id)
+            UserStudyGroup.objects.create(user=request.user, study_group=study_group)
 
-        for subject in subjects:
-            is_visible = request.POST.get(f'subject_{subject.id}') == 'on'
-            preference, created = UserSubjectPreference.objects.get_or_create(user=request.user, subject=subject)
-            preference.is_visible = is_visible
-            preference.save()
-
+        messages.success(request, 'Настройки успешно сохранены')
         return redirect('user_settings')
 
-    return render(request, 'lab_queue_app/settings.html', {
+    user_study_group = UserStudyGroup.objects.filter(user=request.user).first()
+    
+    context = {
         'profile': profile,
         'subjects': subjects,
-        'preferences': {pref.subject.id: pref.is_visible for pref in preferences},
+        'preferences': preferences,
         'study_groups': study_groups,
-        'user_study_group': UserStudyGroup.objects.filter(user=request.user).first()
-    })
+        'user_study_group': user_study_group,
+    }
+    
+    return render(request, 'lab_queue_app/settings.html', context)
 
 def register_username_password(request):
     if request.method == 'POST':

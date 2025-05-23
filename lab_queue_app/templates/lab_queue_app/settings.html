@@ -49,16 +49,73 @@
     <br>
 
     <!-- ===== Раздел: Уведомления ===== -->
-    <div>
+    <div class="notifications-settings">
         <h3>Уведомления</h3>
-        <label>
-            <input type="checkbox" name="telegram_notifications" {% if profile.telegram_notifications %}checked{% endif %} {% if not profile.telegram_id %}disabled{% endif %}>
-            Уведомления в Telegram
-        </label><br>
-        <label>
-            <input type="checkbox" name="email_notifications" {% if profile.email_notifications %}checked{% endif %}>
-            Уведомления на Email
-        </label>
+        
+        <!-- Основные переключатели для каналов уведомлений -->
+        <div class="notification-channels mb-4">
+            <label class="d-block mb-2">
+                <input type="checkbox" name="browser_notifications" {% if profile.browser_notifications %}checked{% endif %}>
+                Браузерные уведомления
+            </label>
+            <label class="d-block">
+                <input type="checkbox" name="telegram_notifications" {% if profile.telegram_notifications %}checked{% endif %} {% if not profile.telegram_id %}disabled{% endif %}>
+                Уведомления в Telegram
+            </label>
+        </div>
+
+        <!-- Детальные настройки уведомлений -->
+        <div class="notification-details">
+            <h4>Настройка типов уведомлений</h4>
+            
+            <div class="row">
+                <!-- Браузерные уведомления -->
+                <div class="col-md-6">
+                    <h5>Браузерные уведомления</h5>
+                    <div class="notification-options">
+                        <label class="d-block">
+                            <input type="checkbox" name="browser_queue_join_leave" {% if profile.browser_queue_join_leave %}checked{% endif %}>
+                            Вход/выход из очереди
+                        </label>
+                        <label class="d-block">
+                            <input type="checkbox" name="browser_position_change" {% if profile.browser_position_change %}checked{% endif %}>
+                            Изменение позиции в очереди
+                        </label>
+                        <label class="d-block">
+                            <input type="checkbox" name="browser_position_3_2" {% if profile.browser_position_3_2 %}checked{% endif %}>
+                            Достижение 3-й и 2-й позиции
+                        </label>
+                        <label class="d-block">
+                            <input type="checkbox" name="browser_position_1" {% if profile.browser_position_1 %}checked{% endif %}>
+                            Достижение 1-й позиции
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Telegram уведомления -->
+                <div class="col-md-6">
+                    <h5>Telegram уведомления</h5>
+                    <div class="notification-options">
+                        <label class="d-block">
+                            <input type="checkbox" name="telegram_queue_join_leave" {% if profile.telegram_queue_join_leave %}checked{% endif %} {% if not profile.telegram_id %}disabled{% endif %}>
+                            Вход/выход из очереди
+                        </label>
+                        <label class="d-block">
+                            <input type="checkbox" name="telegram_position_change" {% if profile.telegram_position_change %}checked{% endif %} {% if not profile.telegram_id %}disabled{% endif %}>
+                            Изменение позиции в очереди
+                        </label>
+                        <label class="d-block">
+                            <input type="checkbox" name="telegram_position_3_2" {% if profile.telegram_position_3_2 %}checked{% endif %} {% if not profile.telegram_id %}disabled{% endif %}>
+                            Достижение 3-й и 2-й позиции
+                        </label>
+                        <label class="d-block">
+                            <input type="checkbox" name="telegram_position_1" {% if profile.telegram_position_1 %}checked{% endif %} {% if not profile.telegram_id %}disabled{% endif %}>
+                            Достижение 1-й позиции
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <br>
