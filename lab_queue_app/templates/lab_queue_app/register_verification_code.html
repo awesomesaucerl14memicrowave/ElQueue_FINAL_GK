@@ -1,67 +1,149 @@
 {% extends 'lab_queue_app/base.html' %}
 {% block title %}Регистрация — Подтверждение{% endblock %}
 {% block content %}
-    <h2>Регистрация — Подтверждение почты</h2>
-    {% if error %}<p style="color: red;">{{ error }}</p>{% endif %}
-    {% if message %}
-        <p style="color: green;">{{ message }}</p>
-        <p style="color: orange;">Внимание: используйте только последний полученный код.</p>
-    {% endif %}
+    <div class="content-section">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="custom-card">
+                    <div class="card-header-custom">
+                        <i class="fas fa-envelope me-2"></i>Подтверждение почты
+                    </div>
+                    <div class="card-body">
+                        {% if error %}
+                            <div class="alert alert-danger rounded-3 shadow-sm mb-4">
+                                <i class="fas fa-exclamation-circle me-2"></i>{{ error }}
+                            </div>
+                        {% endif %}
+                        {% if message %}
+                            <div class="alert alert-success rounded-3 shadow-sm mb-4">
+                                <i class="fas fa-check-circle me-2"></i>{{ message }}
+                            </div>
+                            <div class="alert alert-warning rounded-3 shadow-sm mb-4">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                Внимание: используйте только последний полученный код!
+                            </div>
+                        {% endif %}
 
-    <form method="post" id="resendForm">
-        {% csrf_token %}
-        <p>Email: <strong>{{ email }}</strong></p>
-        <input type="hidden" name="resend" value="1">
-        <button type="submit" id="resendBtn" {% if seconds_left > 0 %}disabled{% endif %}>
-            {% if seconds_left > 0 %}Отправить код повторно{% else %}Отправить код{% endif %}
-        </button>
-        {% if show_captcha %}
-            <div style="margin-top: 10px;">{{ captcha_form.captcha }}</div>
-            <script src="https://www.google.com/recaptcha/api.js" async defer></script>
-        {% endif %}
-    </form>
+                        <form method="post" id="resendForm" class="mb-4">
+                            {% csrf_token %}
+                            <div class="mb-3">
+                                <label class="form-label">Email:</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-envelope"></i></span>
+                                    <input type="text" class="form-control" value="{{ email }}" disabled>
+                                </div>
+                            </div>
+                            <input type="hidden" name="resend" value="1">
+                            <div class="d-grid">
+                                <button type="submit" id="resendBtn" class="btn btn-custom-secondary" {% if seconds_left > 0 or is_blocked %}disabled{% endif %}>
+                                    <i class="fas fa-paper-plane me-2"></i>
+                                    {% if seconds_left > 0 %}Отправить код повторно{% else %}Отправить код{% endif %}
+                                </button>
+                            </div>
+                            {% if show_captcha %}
+                                <div class="mt-3">{{ captcha_form.captcha }}</div>
+                                <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+                            {% endif %}
+                        </form>
 
-    <form method="post" id="codeForm" style="margin-top: 10px;">
-        {% csrf_token %}
-        <label>Код подтверждения:
-            <input type="text" name="code" id="id_code" maxlength="6" pattern="\d{6}" required inputmode="numeric" autocomplete="one-time-code">
-        </label><br>
-        <button type="submit">Подтвердить</button>
-    </form>
+                        <form method="post" id="codeForm">
+                            {% csrf_token %}
+                            <div class="mb-3">
+                                <label for="id_code" class="form-label">Код подтверждения:</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-key"></i></span>
+                                    <input type="text" 
+                                           name="code" 
+                                           id="id_code" 
+                                           class="form-control" 
+                                           maxlength="6" 
+                                           pattern="\d{6}" 
+                                           required 
+                                           inputmode="numeric" 
+                                           autocomplete="one-time-code"
+                                           {% if is_blocked %}disabled{% endif %}>
+                                </div>
+                                <div class="form-text">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    Введите 6-значный код, отправленный на вашу почту
+                                </div>
+                            </div>
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-custom" {% if is_blocked %}disabled{% endif %}>
+                                    <i class="fas fa-check me-2"></i>Подтвердить
+                                </button>
+                            </div>
+                        </form>
 
-    <div id="timer" style="margin-top: 10px;"></div>
+                        {% if is_blocked %}
+                            <div class="alert alert-warning rounded-3 shadow-sm mt-4">
+                                <i class="fas fa-clock me-2"></i>
+                                Попробуйте снова после {{ block_until|date:"H:i" }}
+                            </div>
+                        {% endif %}
+
+                        <div id="timer" class="text-muted text-center mt-3"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .form-control:disabled {
+            background-color: #f8f9fa;
+            cursor: not-allowed;
+        }
+
+        .btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.65;
+        }
+
+        .alert {
+            border: none;
+        }
+
+        .alert-danger {
+            background-color: #fff2f2;
+            color: #dc3545;
+        }
+
+        .alert-success {
+            background-color: #f0fff4;
+            color: #198754;
+        }
+
+        .alert-warning {
+            background-color: #fff8e6;
+            color: #ffc107;
+        }
+
+        #timer {
+            font-size: 0.9rem;
+        }
+    </style>
 
     <script>
-        let secondsLeft = Number({{ seconds_left|default:0 }});
-        const resendTimeout = Number({{ resend_timeout|default:60 }});
+        let secondsLeft = {{ seconds_left|default:0 }};
+        const resendTimeout = {{ resend_timeout|default:60 }};
         const resendBtn = document.getElementById('resendBtn');
         const timerDiv = document.getElementById('timer');
-        const codeInput = document.getElementById('id_code');
-        const codeForm = document.getElementById('codeForm');
 
         function updateTimer() {
             if (secondsLeft > 0) {
                 resendBtn.disabled = true;
-                resendBtn.textContent = "Отправить код повторно";
-                timerDiv.textContent = "Повторная отправка доступна через " + secondsLeft + " сек.";
+                resendBtn.innerHTML = '<i class="fas fa-paper-plane me-2"></i>Отправить повторно';
+                timerDiv.innerHTML = '<i class="fas fa-clock me-2"></i>Повторная отправка доступна через ' + secondsLeft + ' сек.';
                 secondsLeft--;
                 setTimeout(updateTimer, 1000);
-            } else {
+            } else if (!{{ is_blocked|yesno:"true,false" }}) {
                 resendBtn.disabled = false;
-                resendBtn.textContent = "Отправить код повторно";
-                timerDiv.textContent = "";
+                resendBtn.innerHTML = '<i class="fas fa-paper-plane me-2"></i>Отправить код';
+                timerDiv.textContent = '';
             }
         }
 
         updateTimer();
-
-        codeInput.addEventListener('input', function() {
-            if (/^\d{6}$/.test(codeInput.value)) {
-                codeForm.submit();
-            }
-        });
-
-        // Уведомление в консоли — для тестов
-        console.log("Код для {{ email }}: {{ request.session.register_data.code }}");
     </script>
 {% endblock %}

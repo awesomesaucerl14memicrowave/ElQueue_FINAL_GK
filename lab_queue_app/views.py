@@ -377,40 +377,62 @@ def register_verification_code(request):
     email = register_data['email']
     stored_code = register_data.get('code')
     
-    # Получаем или создаем объект для отслеживания попыток
-    attempt, created = VerificationCodeAttempt.objects.get_or_create(
-        user=request.user if request.user.is_authenticated else None,
-        code_type='email_verification',
-        defaults={'attempts': 0}
-    )
+    # Используем сессию для отслеживания попыток вместо модели
+    session_key = 'verification_attempts'
+    attempts_data = request.session.get(session_key, {
+        'attempts': 0,
+        'last_attempt': None,
+        'is_blocked': False,
+        'block_until': None
+    })
+
+    def can_attempt():
+        if not attempts_data['is_blocked']:
+            return True
+        if attempts_data['block_until'] and timezone.now() > datetime.fromisoformat(attempts_data['block_until']):
+            attempts_data['is_blocked'] = False
+            attempts_data['attempts'] = 0
+            request.session[session_key] = attempts_data
+            return True
+        return False
+
+    def increment_attempts():
+        attempts_data['attempts'] += 1
+        if attempts_data['attempts'] >= 3:
+            attempts_data['is_blocked'] = True
+            attempts_data['block_until'] = (timezone.now() + timedelta(minutes=30)).isoformat()
+        attempts_data['last_attempt'] = timezone.now().isoformat()
+        request.session[session_key] = attempts_data
+        request.session.modified = True
 
     if request.method == 'POST':
         code = request.POST.get('code')
         
         # Проверяем, не заблокированы ли попытки
-        if not attempt.can_attempt():
-            minutes_left = int((attempt.block_until - timezone.now()).total_seconds() / 60)
+        if not can_attempt():
+            block_until = datetime.fromisoformat(attempts_data['block_until'])
+            minutes_left = int((block_until - timezone.now()).total_seconds() / 60)
             return render(request, 'lab_queue_app/register_verification_code.html', {
                 'email': email,
                 'error': f'Слишком много неудачных попыток. Попробуйте снова через {minutes_left} минут.',
                 'is_blocked': True,
-                'block_until': attempt.block_until
+                'block_until': block_until
             })
 
         if code != stored_code:
-            attempt.increment_attempts()
+            increment_attempts()
             error_message = 'Неверный код.'
-            if attempt.is_blocked:
+            if attempts_data['is_blocked']:
                 error_message = 'Слишком много неудачных попыток. Попробуйте снова через 30 минут.'
             return render(request, 'lab_queue_app/register_verification_code.html', {
                 'email': email,
                 'error': error_message,
-                'is_blocked': attempt.is_blocked,
-                'block_until': attempt.block_until
+                'is_blocked': attempts_data['is_blocked'],
+                'block_until': datetime.fromisoformat(attempts_data['block_until']) if attempts_data['block_until'] else None
             })
 
-        # Если код верный, сбрасываем счетчик попыток
-        attempt.reset()
+        # Если код верный, очищаем данные о попытках
+        request.session.pop(session_key, None)
         
         # Создаем пользователя и выполняем вход
         user = User.objects.create_user(
@@ -424,8 +446,8 @@ def register_verification_code(request):
 
     return render(request, 'lab_queue_app/register_verification_code.html', {
         'email': email,
-        'is_blocked': attempt.is_blocked if attempt else False,
-        'block_until': attempt.block_until if attempt else None
+        'is_blocked': attempts_data['is_blocked'],
+        'block_until': datetime.fromisoformat(attempts_data['block_until']) if attempts_data['block_until'] else None
     })
 
 def register_telegram_choice(request):
