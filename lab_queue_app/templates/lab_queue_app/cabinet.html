@@ -2,210 +2,230 @@
 {% block title %}Кабинет{% endblock %}
 
 {% block content %}
-    <h2>Кабинет пользователя</h2>
+    <div class="content-section">
+        <h2 class="mb-4">Кабинет пользователя</h2>
 
-    {% if no_study_group %}
-        <p>Вы не выбрали учебную группу. Пожалуйста, выберите группу в <a href="{% url 'user_settings' %}">настройках</a>.</p>
-    {% else %}
-        <!-- Секция: Мои данные -->
-        <h3>Мои данные</h3>
-        {% if profile.avatar %}
-            <img src="{{ profile.avatar.image.url }}" alt="Аватар" style="max-width: 100px;">
+        {% if no_study_group %}
+            <div class="custom-card">
+                <div class="card-body">
+                    <p class="text-muted mb-0">Вы не выбрали учебную группу. Пожалуйста, выберите группу в <a href="{% url 'user_settings' %}" class="text-decoration-none">настройках</a>.</p>
+                </div>
+            </div>
         {% else %}
-            <p>Аватар отсутствует</p>
-        {% endif %}
-        <p>Имя: {{ request.user.username }}</p>
-        <p>Email: {{ request.user.email|default:'Не указан' }}</p>
-        <p>Telegram: {{ profile.telegram_id|default:'Не привязан' }}</p>
-        <p>Учебная группа: {{ study_group.name }}</p>
-        <p><a href="{% url 'user_settings' %}">Редактировать настройки</a></p>
-
-        <!-- Секция: Мои предметы -->
-        <h3>Мои предметы</h3>
-        <div id="subjects-section">
-            {% if subjects_with_works %}
-                {% for subject_item in subjects_with_works %}
-                    <div class="subject-section" data-subject-id="{{ subject_item.subject.id }}">
-                        <h4>
-                            {{ subject_item.subject.name }} - 
-                            Расписание: {{ subject_item.schedule_text }}
-                            {% if subject_item.is_running %}
-                                (идёт)
+            <!-- Секция: Мои данные -->
+            <div class="custom-card mb-4">
+                <div class="card-header-custom">
+                    <i class="fas fa-user me-2"></i>Мои данные
+                </div>
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            {% if profile.avatar %}
+                                <img src="{{ profile.avatar.image.url }}" alt="Аватар" class="rounded-circle" style="width: 100px; height: 100px; object-fit: cover;">
                             {% else %}
-                                {% if subject_item.next_date %}
-                                    (следующая пара: {{ subject_item.next_date }})
-                                {% endif %}
+                                <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center" style="width: 100px; height: 100px;">
+                                    <i class="fas fa-user fa-3x text-light"></i>
+                                </div>
                             {% endif %}
-                        </h4>
-                        <ul class="works-list">
-                            {% for item in subject_item.works %}
-                                <li class="work-item" data-work-id="{{ item.work.id }}">
-                                    Лаба {{ item.work.sequence_number }} - {{ item.work.name }}
-                                    {% if item.is_served %}
-                                        <span>Сдано</span>
-                                        <form method="post" action="{% url 'cancel_served' item.work.id %}" class="cancel-served-form" style="display:inline;" data-work-id="{{ item.work.id }}">
-                                            {% csrf_token %}
-                                            <button type="submit" class="cancel-served-btn">Отметить несданной</button>
-                                        </form>
-                                    {% else %}
-                                        <form method="post" action="{% url 'mark_served' item.work.id %}" class="mark-served-form" style="display:inline;" data-work-id="{{ item.work.id }}">
-                                            {% csrf_token %}
-                                            <button type="submit" class="mark-served-btn">Отметить сданной</button>
-                                        </form>
-                                        <button class="join-queue-btn"
-                                                data-works="{{ item.available_works_str|escapejs }}"
-                                                onclick="openJoinModal({{ item.work.id }}, '{{ item.work.sequence_number }} {{ item.work.name }}', this.getAttribute('data-works'), true)">
-                                            Встать в очередь
-                                        </button>
-                                        {% if item.participant and item.participant.status == 'active' %}
-                                            <span>В очереди (позиция: {{ item.participant.list_position }})</span>
+                        </div>
+                        <div class="col">
+                            <div class="mb-2"><strong>Имя:</strong> {{ request.user.username }}</div>
+                            <div class="mb-2"><strong>Email:</strong> {{ request.user.email|default:'Не указан' }}</div>
+                            <div class="mb-2"><strong>Telegram:</strong> {{ profile.telegram_id|default:'Не привязан' }}</div>
+                            <div class="mb-3"><strong>Учебная группа:</strong> {{ study_group.name }}</div>
+                            <a href="{% url 'user_settings' %}" class="btn btn-custom">
+                                <i class="fas fa-cog me-2"></i>Редактировать настройки
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Секция: Мои предметы -->
+            <div class="custom-card mb-4">
+                <div class="card-header-custom">
+                    <i class="fas fa-book me-2"></i>Мои предметы
+                </div>
+                <div class="card-body" id="subjects-section">
+                    {% if subjects_with_works %}
+                        {% for subject_item in subjects_with_works %}
+                            <div class="subject-section mb-4" data-subject-id="{{ subject_item.subject.id }}">
+                                <h4 class="mb-3">
+                                    {{ subject_item.subject.name }}
+                                    <small class="text-muted d-block mt-1">
+                                        <i class="fas fa-calendar me-2"></i>{{ subject_item.schedule_text }}
+                                        {% if subject_item.is_running %}
+                                            <span class="badge bg-success ms-2">идёт</span>
+                                        {% else %}
+                                            {% if subject_item.next_date %}
+                                                <span class="badge bg-info ms-2">следующая пара: {{ subject_item.next_date }}</span>
+                                            {% endif %}
                                         {% endif %}
-                                    {% endif %}
+                                    </small>
+                                </h4>
+                                <div class="works-list">
+                                    {% for item in subject_item.works %}
+                                        <div class="queue-item work-item" data-work-id="{{ item.work.id }}">
+                                            <div class="d-flex justify-content-between align-items-center flex-wrap">
+                                                <div class="mb-2 mb-md-0">
+                                                    <h5 class="mb-1">Лаба {{ item.work.sequence_number }} - {{ item.work.name }}</h5>
+                                                    {% if item.participant and item.participant.status == 'active' %}
+                                                        <span class="badge bg-primary">В очереди (позиция: {{ item.participant.list_position }})</span>
+                                                    {% endif %}
+                                                </div>
+                                                <div class="btn-group">
+                                                    {% if item.is_served %}
+                                                        <span class="badge bg-success me-2">Сдано</span>
+                                                        <form method="post" action="{% url 'cancel_served' item.work.id %}" class="cancel-served-form d-inline" data-work-id="{{ item.work.id }}">
+                                                            {% csrf_token %}
+                                                            <button type="submit" class="btn btn-custom-secondary btn-sm">
+                                                                <i class="fas fa-times me-1"></i>Отметить несданной
+                                                            </button>
+                                                        </form>
+                                                    {% else %}
+                                                        <form method="post" action="{% url 'mark_served' item.work.id %}" class="mark-served-form d-inline me-2" data-work-id="{{ item.work.id }}">
+                                                            {% csrf_token %}
+                                                            <button type="submit" class="btn btn-custom btn-sm">
+                                                                <i class="fas fa-check me-1"></i>Отметить сданной
+                                                            </button>
+                                                        </form>
+                                                        <button class="btn btn-custom btn-sm join-queue-btn"
+                                                                data-works="{{ item.available_works_str|escapejs }}"
+                                                                onclick="openJoinModal({{ item.work.id }}, '{{ item.work.sequence_number }} {{ item.work.name }}', this.getAttribute('data-works'), true)">
+                                                            <i class="fas fa-sign-in-alt me-1"></i>Встать в очередь
+                                                        </button>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted mb-0">У вас нет предметов. Обратитесь к администратору, чтобы добавить предметы для вашей группы.</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Секция: Мои очереди -->
+            <div class="custom-card mb-4">
+                <div class="card-header-custom">
+                    <i class="fas fa-list-ol me-2"></i>Мои очереди
+                </div>
+                <div class="card-body" id="user-queues">
+                    {% if user_works %}
+                        <ul class="queues-list">
+                            {% for entry in user_works %}
+                                <li class="queue-item" data-work-id="{{ entry.work.practical_work.id }}">
+                                    <div class="d-flex justify-content-between align-items-center flex-wrap">
+                                        <div class="mb-2 mb-md-0">
+                                            <h5 class="mb-1">{{ entry.work.practical_work.subject.name }} - Лаба {{ entry.work.practical_work.sequence_number }}</h5>
+                                            <div>
+                                                <span class="badge bg-primary me-2">Позиция: {{ entry.work.list_position }}</span>
+                                                {% if entry.is_running %}
+                                                    <span class="badge bg-success">Пара идёт</span>
+                                                {% else %}
+                                                    {% if entry.next_date %}
+                                                        <span class="badge bg-info">{{ entry.next_date }}</span>
+                                                    {% else %}
+                                                        <span class="badge bg-warning">Нет расписания</span>
+                                                    {% endif %}
+                                                {% endif %}
+                                                <span class="badge bg-secondary">{{ entry.status_text }}</span>
+                                            </div>
+                                        </div>
+                                        <div class="mt-2 mt-md-0">
+                                            <a href="{% url 'queue_details' entry.work.practical_work.id %}" class="btn btn-custom btn-sm me-2">
+                                                <i class="fas fa-info-circle me-1"></i>Подробнее
+                                            </a>
+                                            <button class="btn btn-custom-secondary btn-sm leave-queue-btn" onclick="openLeaveModal({{ entry.work.practical_work.id }}, '{{ entry.work.practical_work.sequence_number }} {{ entry.work.practical_work.name }}')">
+                                                <i class="fas fa-sign-out-alt me-1"></i>Выйти из очереди
+                                            </button>
+                                        </div>
+                                    </div>
                                 </li>
                             {% endfor %}
                         </ul>
-                    </div>
-                {% endfor %}
-            {% else %}
-                <p>У вас нет предметов. Обратитесь к администратору, чтобы добавить предметы для вашей группы.</p>
-            {% endif %}
-        </div>
+                    {% else %}
+                        <p class="text-muted mb-0">Вы не записаны в очереди.</p>
+                    {% endif %}
+                </div>
+            </div>
 
-        <!-- Секция: Мои очереди -->
-        <h3>Мои очереди</h3>
-        <div id="user-queues">
-            {% if user_works %}
-                <ul class="queues-list">
-                    {% for entry in user_works %}
-                        <li class="queue-item" data-work-id="{{ entry.work.practical_work.id }}">
-                            <div>
-                                {{ entry.work.practical_work.subject.name }} - Лаба {{ entry.work.practical_work.sequence_number }} - 
-                                Позиция: {{ entry.work.list_position }} - 
-                                {% if entry.is_running %}
-                                    Пара идёт
-                                {% else %}
-                                    {% if entry.next_date %}
-                                        {{ entry.next_date }}
+            <!-- Секция: Карточки вставания в очередь -->
+            <div class="custom-card">
+                <div class="card-header-custom">
+                    <i class="fas fa-plus-circle me-2"></i>Встать в очередь
+                </div>
+                <div class="card-body" id="queue-cards">
+                    {% if queue_cards %}
+                        <div class="row">
+                            {% for card in queue_cards %}
+                                <div class="col-md-6 col-lg-4 mb-3">
+                                    {% if card.no_available_works %}
+                                        <div class="queue-card">
+                                            <p class="text-muted mb-0">Нет доступных лабораторных работ для записи в очередь.</p>
+                                        </div>
                                     {% else %}
-                                        Нет расписания
+                                        <div class="queue-card" data-subject-id="{{ card.subject.id }}">
+                                            <h4>{{ card.subject.name }}</h4>
+                                            <button class="btn btn-custom join-queue-btn w-100"
+                                                    data-works="{{ card.available_works_str|escapejs }}"
+                                                    onclick="openJoinModal({{ card.first_work_id }}, '{{ card.first_work_seq }} {{ card.first_work_name }}', this.getAttribute('data-works'), false)">
+                                                <i class="fas fa-sign-in-alt me-2"></i>Встать в очередь
+                                            </button>
+                                        </div>
                                     {% endif %}
-                                {% endif %}
-                                ({{ entry.status_text }})
-                                <br>
-                                <a href="{% url 'queue_details' entry.work.practical_work.id %}" class="btn btn-info btn-sm" style="margin-top: 5px; margin-right: 5px;">
-                                    Подробнее
-                                </a>
-                                <button class="leave-queue-btn" onclick="openLeaveModal({{ entry.work.practical_work.id }}, '{{ entry.work.practical_work.sequence_number }} {{ entry.work.practical_work.name }}')">
-                                    Выйти из очереди
-                                </button>
-                            </div>
-                        </li>
-                    {% endfor %}
-                </ul>
-            {% else %}
-                <p>Вы не записаны в очереди.</p>
-            {% endif %}
-        </div>
-
-        <!-- Секция: Карточки вставания в очередь -->
-        <h3>Встать в очередь</h3>
-        <div id="queue-cards">
-            {% if queue_cards %}
-                {% for card in queue_cards %}
-                    {% if card.no_available_works %}
-                        <div class="queue-card">
-                            <p>Нет доступных лабораторных работ для записи в очередь.</p>
+                                </div>
+                            {% endfor %}
                         </div>
                     {% else %}
-                        <div class="queue-card" data-subject-id="{{ card.subject.id }}">
-                            <h4>{{ card.subject.name }}</h4>
-                            <button class="join-queue-btn"
-                                    data-works="{{ card.available_works_str|escapejs }}"
-                                    onclick="openJoinModal({{ card.first_work_id }}, '{{ card.first_work_seq }} {{ card.first_work_name }}', this.getAttribute('data-works'), false)">
-                                Встать в очередь
-                            </button>
-                        </div>
+                        <p class="text-muted mb-0">Нет доступных лабораторных работ для записи в очередь.</p>
                     {% endif %}
-                {% endfor %}
-            {% else %}
-                <p>Нет доступных лабораторных работ для записи в очередь.</p>
-            {% endif %}
-        </div>
-
-        <!-- Модальное окно для вставания в очередь -->
-        <div id="joinModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5);">
-            <div style="background:white; padding:20px; margin:15% auto; width:300px; border-radius:5px;">
-                <h3>Подтверждение</h3>
-                <form id="joinForm" method="post">
-                    {% csrf_token %}
-                    <p>Выберите лабораторную работу:</p>
-                    <select name="work_id" id="joinWorkId">
-                        <option value="" disabled selected>Выберите лабу</option>
-                    </select>
-                    <br>
-                    <button type="submit" class="btn btn-success mt-3">Подтвердить</button>
-                    <button type="button" class="btn btn-secondary mt-3" onclick="closeJoinModal()">Отмена</button>
-                </form>
-            </div>
-        </div>
-
-        <!-- Модальное окно для выхода из очереди -->
-        <div id="leaveModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5);">
-            <div style="background:white; padding:20px; margin:15% auto; width:300px; border-radius:5px;">
-                <h3>Подтверждение выхода</h3>
-                <form id="leaveForm" method="post">
-                    {% csrf_token %}
-                    <p>Вы выходите из очереди на лабу: <span id="leaveLabName"></span></p>
-                    <input type="hidden" name="work_id" id="leaveWorkId">
-                    <label><input type="checkbox" name="has_passed" checked> Я сдал лабу</label>
-                    <br>
-                    <button type="submit" class="leave-submit-btn">Подтвердить</button>
-                    <button type="button" onclick="closeLeaveModal()">Отмена</button>
-                </form>
-            </div>
-        </div>
-
-        <div class="card mb-4">
-            <div class="card-header">
-                <h3>Активные очереди</h3>
-            </div>
-            <div class="card-body">
-                {% if active_queues %}
-                <div class="table-responsive">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Предмет</th>
-                                <th>Лабораторная работа</th>
-                                <th>Позиция</th>
-                                <th>Действия</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for queue in active_queues %}
-                            <tr>
-                                <td>{{ queue.practical_work.subject.name }}</td>
-                                <td>{{ queue.practical_work.name }}</td>
-                                <td>{{ queue.list_position }}</td>
-                                <td>
-                                    <a href="{% url 'queue_details' queue.practical_work.id %}" class="btn btn-info btn-sm">
-                                        <i class="fas fa-info-circle"></i> Детали очереди
-                                    </a>
-                                    <button class="btn btn-danger btn-sm leave-queue" data-work-id="{{ queue.practical_work.id }}">
-                                        <i class="fas fa-times"></i> Покинуть очередь
-                                    </button>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
                 </div>
-                {% else %}
-                <p class="text-muted">У вас нет активных очередей</p>
-                {% endif %}
             </div>
-        </div>
-    {% endif %}
+
+            <!-- Модальные окна -->
+            <div id="joinModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(45, 31, 54, 0.5);">
+                <div style="background:var(--purple-light); padding:20px; margin:15% auto; width:300px; border-radius:12px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);">
+                    <h3 class="mb-3">Подтверждение</h3>
+                    <form id="joinForm" method="post">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label">Выберите лабораторную работу:</label>
+                            <select name="work_id" id="joinWorkId" class="form-select">
+                                <option value="" disabled selected>Выберите лабу</option>
+                            </select>
+                        </div>
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-custom">Подтвердить</button>
+                            <button type="button" class="btn btn-custom-secondary" onclick="closeJoinModal()">Отмена</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div id="leaveModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(45, 31, 54, 0.5);">
+                <div style="background:var(--purple-light); padding:20px; margin:15% auto; width:300px; border-radius:12px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);">
+                    <h3 class="mb-3">Подтверждение выхода</h3>
+                    <form id="leaveForm" method="post">
+                        {% csrf_token %}
+                        <p class="mb-3">Вы выходите из очереди на лабу: <span id="leaveLabName" class="fw-bold"></span></p>
+                        <input type="hidden" name="work_id" id="leaveWorkId">
+                        <div class="form-check mb-3">
+                            <input type="checkbox" class="form-check-input" name="has_passed" id="hasPassedCheck" checked>
+                            <label class="form-check-label" for="hasPassedCheck">Я сдал лабу</label>
+                        </div>
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-custom leave-submit-btn">Подтвердить</button>
+                            <button type="button" class="btn btn-custom-secondary" onclick="closeLeaveModal()">Отмена</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        {% endif %}
+    </div>
 
     <script>
         // Функции для модальных окон

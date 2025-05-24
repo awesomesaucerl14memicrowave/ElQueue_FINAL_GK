@@ -1,0 +1,203 @@
+:root {
+    --purple-main: #9B8AA6;
+    --purple-light: #F4F1F6;
+    --purple-dark: #6B5876;
+    --header-color: #4A3B54;
+    --dark-color: #2D1F36;
+    --accent-primary: #7B6B85;
+    --accent-secondary: #A899B2;
+    --text-dark: #333;
+    --text-light: #fff;
+}
+
+body {
+    background-color: var(--purple-light);
+    color: var(--text-dark);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Navbar Styles */
+.navbar-custom {
+    background: var(--header-color);
+    padding: 0.8rem 1rem;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.navbar-brand {
+    font-weight: 700;
+    font-size: 1.5rem;
+    color: var(--text-light) !important;
+}
+
+.navbar-brand i {
+    color: var(--accent-secondary);
+    margin-right: 10px;
+}
+
+.nav-link {
+    color: rgba(255, 255, 255, 0.85) !important;
+    font-weight: 500;
+    margin: 0 0.5rem;
+    position: relative;
+    transition: color 0.3s;
+}
+
+.nav-link:hover, .nav-link:focus {
+    color: var(--text-light) !important;
+}
+
+.nav-link::after {
+    content: '';
+    position: absolute;
+    bottom: -3px;
+    left: 0;
+    width: 0;
+    height: 2px;
+    background: var(--accent-secondary);
+    transition: width 0.3s;
+}
+
+.nav-link:hover::after {
+    width: 100%;
+}
+
+/* Main Content */
+.main-content {
+    flex: 1;
+    padding: 2rem 0;
+}
+
+/* Custom Cards */
+.custom-card {
+    background: var(--purple-light);
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    transition: transform 0.3s, box-shadow 0.3s;
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+}
+
+.custom-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+.card-header-custom {
+    background: var(--accent-primary);
+    color: var(--text-light);
+    font-weight: 600;
+    padding: 1rem 1.5rem;
+}
+
+/* Queue List Styles */
+.queues-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.queue-item {
+    background: var(--purple-light);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.queue-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Queue Cards */
+.queue-card {
+    background: var(--purple-light);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.queue-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+}
+
+.queue-card h4 {
+    color: var(--header-color);
+    margin-bottom: 1rem;
+}
+
+/* Buttons */
+.btn-custom, 
+.join-queue-btn,
+.leave-queue-btn,
+button[type="submit"] {
+    background: var(--accent-primary);
+    color: var(--text-light);
+    border: none;
+    border-radius: 8px;
+    padding: 0.6rem 1.2rem;
+    font-weight: 500;
+    transition: all 0.3s;
+    cursor: pointer;
+}
+
+.btn-custom:hover,
+.join-queue-btn:hover,
+.leave-queue-btn:hover,
+button[type="submit"]:hover {
+    background: var(--header-color);
+    color: var(--text-light);
+    transform: translateY(-2px);
+}
+
+.btn-custom-secondary {
+    background: var(--accent-secondary);
+}
+
+/* Modal Styles */
+#joinModal, #leaveModal {
+    background: rgba(45, 31, 54, 0.5);
+}
+
+#joinModal > div, #leaveModal > div {
+    background: var(--purple-light);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+}
+
+/* Headings */
+h2, h3 {
+    color: var(--header-color);
+    margin-bottom: 1.5rem;
+    font-weight: 600;
+}
+
+/* Toast Styles */
+#toast-container .toast {
+    background: var(--header-color);
+    color: var(--text-light);
+    border-radius: 8px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .navbar-brand {
+        font-size: 1.3rem;
+    }
+    
+    .main-content {
+        padding: 1rem;
+    }
+    
+    .queue-card {
+        margin-bottom: 1rem;
+    }
+} 

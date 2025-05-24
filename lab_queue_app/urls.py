@@ -1,6 +1,7 @@
 from django.urls import path
 from django.contrib.auth import views as auth_views
 from . import views
+from .forms import CustomAuthenticationForm
 
 urlpatterns = [
     path('', views.index, name='index'),
@@ -9,7 +10,10 @@ urlpatterns = [
     path('settings/change-email/', views.change_email, name='change_email'),
     path('settings/password-reset/', views.password_reset_request, name='password_reset_request'),
     path('reset-password/<uidb64>/<token>/', views.password_reset_confirm, name='password_reset_confirm'),
-    path('login/', auth_views.LoginView.as_view(template_name='lab_queue_app/login.html'), name='login'),
+    path('login/', auth_views.LoginView.as_view(
+        template_name='lab_queue_app/login.html',
+        authentication_form=CustomAuthenticationForm
+    ), name='login'),
     path('logout/', views.logout_view, name='logout'),
     path('register/', views.register_username_password, name='register'),
     path('register/captcha/', views.register_captcha, name='register_captcha'),

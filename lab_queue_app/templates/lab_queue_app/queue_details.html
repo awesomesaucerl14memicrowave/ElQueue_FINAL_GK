@@ -3,33 +3,40 @@
 {% block title %}{{ work.subject.name }} - Очередь{% endblock %}
 
 {% block content %}
-<div class="container py-4">
+<div class="content-section">
     <div class="row">
         <div class="col-md-8">
-            <div class="card shadow-sm">
+            <div class="custom-card mb-4">
+                <div class="card-header-custom">
+                    <i class="fas fa-graduation-cap me-2"></i>{{ work.subject.name }}
+                </div>
                 <div class="card-body">
-                    <h1 class="card-title h3 mb-4">{{ work.subject.name }}</h1>
-                    
                     <div class="mb-4">
-                        <h5 class="text-muted mb-3">Активные участники</h5>
+                        <h5 class="mb-3">
+                            <i class="fas fa-users me-2"></i>Активные участники
+                        </h5>
                         {% if active_participants %}
-                            <div class="list-group list-group-flush">
+                            <div class="queue-list">
                                 {% for participant in active_participants %}
-                                    <div class="list-group-item">
-                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <div class="queue-item">
+                                        <div class="d-flex justify-content-between align-items-center">
                                             <div>
                                                 <span class="badge bg-primary me-2">#{{ participant.list_position }}</span>
-                                                {{ participant.user.get_full_name|default:participant.user.username }}
-                                                <span class="text-muted ms-2">
-                                                    (Лаба {{ participant.practical_work.sequence_number }} - {{ participant.practical_work.name }})
-                                                </span>
+                                                <span class="fw-medium">{{ participant.user.get_full_name|default:participant.user.username }}</span>
+                                                <div class="text-muted mt-1">
+                                                    <i class="fas fa-flask me-1"></i>
+                                                    Лаба {{ participant.practical_work.sequence_number }} - {{ participant.practical_work.name }}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
                                 {% endfor %}
                             </div>
                         {% else %}
-                            <p class="text-muted">В очереди пока никого нет</p>
+                            <div class="text-center py-4">
+                                <i class="fas fa-users fa-3x mb-3 text-muted"></i>
+                                <p class="text-muted mb-0">В очереди пока никого нет</p>
+                            </div>
                         {% endif %}
                     </div>
                 </div>
@@ -37,45 +44,56 @@
         </div>
 
         <div class="col-md-4">
-            <div class="card shadow-sm mb-4">
+            <div class="custom-card mb-4">
+                <div class="card-header-custom">
+                    <i class="fas fa-info-circle me-2"></i>Информация об очереди
+                </div>
                 <div class="card-body">
-                    <h5 class="card-title mb-4">Информация об очереди</h5>
-                    
-                    <div class="mb-3">
-                        <p class="mb-1"><strong>Предмет:</strong></p>
-                        <p class="text-muted">{{ work.subject.name }}</p>
+                    <div class="mb-4">
+                        <h6 class="text-muted mb-2">Предмет</h6>
+                        <p class="mb-0 fw-medium">{{ work.subject.name }}</p>
                     </div>
 
-                    <div class="mb-3">
-                        <p class="mb-1"><strong>Ваша позиция:</strong></p>
-                        <p class="text-muted">
-                            {% if is_in_queue %}
-                                {% if user_position == 1 %}
-                                    Вы первый в очереди
-                                {% else %}
-                                    {{ user_position|add:"-1" }} человек перед вами
-                                {% endif %}
+                    <div class="mb-4">
+                        <h6 class="text-muted mb-2">Ваша позиция</h6>
+                        {% if is_in_queue %}
+                            {% if user_position == 1 %}
+                                <div class="d-flex align-items-center">
+                                    <span class="badge bg-success me-2">
+                                        <i class="fas fa-star me-1"></i>Первый
+                                    </span>
+                                    <span>Вы первый в очереди</span>
+                                </div>
                             {% else %}
-                                Вы не в очереди
+                                <div class="d-flex align-items-center">
+                                    <span class="badge bg-primary me-2">
+                                        <i class="fas fa-users me-1"></i>{{ user_position|add:"-1" }}
+                                    </span>
+                                    <span>человек перед вами</span>
+                                </div>
                             {% endif %}
-                        </p>
+                        {% else %}
+                            <span class="badge bg-warning">
+                                <i class="fas fa-exclamation-circle me-1"></i>Вы не в очереди
+                            </span>
+                        {% endif %}
                     </div>
 
                     {% if user.is_authenticated %}
                         {% if is_in_queue %}
-                            <div class="mt-4">
-                                <button type="button" class="btn btn-danger w-100" onclick="openLeaveModal({{ work.id }}, '{{ work.sequence_number }} {{ work.name }}')">
-                                    <i class="fas fa-sign-out-alt"></i> Выйти из очереди
-                                </button>
-                            </div>
+                            <button type="button" class="btn btn-custom-secondary w-100" 
+                                    onclick="openLeaveModal({{ work.id }}, '{{ work.sequence_number }} {{ work.name }}')">
+                                <i class="fas fa-sign-out-alt me-2"></i>Выйти из очереди
+                            </button>
                         {% else %}
-                            <button type="button" class="btn btn-success w-100" onclick="openJoinModal({{ work.id }}, '{{ work.sequence_number }} {{ work.name }}', '{{ work.id }}|{{ work.sequence_number }}|{{ work.name }}')">
-                                <i class="fas fa-sign-in-alt"></i> Встать в очередь
+                            <button type="button" class="btn btn-custom w-100" 
+                                    onclick="openJoinModal({{ work.id }}, '{{ work.sequence_number }} {{ work.name }}', '{{ work.id }}|{{ work.sequence_number }}|{{ work.name }}')">
+                                <i class="fas fa-sign-in-alt me-2"></i>Встать в очередь
                             </button>
                         {% endif %}
                     {% else %}
-                        <a href="{% url 'login' %}" class="btn btn-primary w-100">
-                            <i class="fas fa-sign-in-alt"></i> Войти для участия
+                        <a href="{% url 'login' %}" class="btn btn-custom w-100">
+                            <i class="fas fa-sign-in-alt me-2"></i>Войти для участия
                         </a>
                     {% endif %}
                 </div>
@@ -84,35 +102,41 @@
     </div>
 </div>
 
-<!-- Модальное окно для вставания в очередь -->
-<div id="joinModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5);">
-    <div style="background:white; padding:20px; margin:15% auto; width:300px; border-radius:5px;">
-        <h3>Подтверждение</h3>
+<!-- Модальные окна -->
+<div id="joinModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(45, 31, 54, 0.5);">
+    <div style="background:var(--purple-light); padding:20px; margin:15% auto; width:300px; border-radius:12px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);">
+        <h3 class="mb-3">Подтверждение</h3>
         <form id="joinForm" method="post">
             {% csrf_token %}
-            <p>Выберите лабораторную работу:</p>
-            <select name="work_id" id="joinWorkId">
-                <option value="" disabled selected>Выберите лабу</option>
-            </select>
-            <br>
-            <button type="submit" class="btn btn-success mt-3">Подтвердить</button>
-            <button type="button" class="btn btn-secondary mt-3" onclick="closeJoinModal()">Отмена</button>
+            <div class="mb-3">
+                <label class="form-label">Выберите лабораторную работу:</label>
+                <select name="work_id" id="joinWorkId" class="form-select">
+                    <option value="" disabled selected>Выберите лабу</option>
+                </select>
+            </div>
+            <div class="d-grid gap-2">
+                <button type="submit" class="btn btn-custom">Подтвердить</button>
+                <button type="button" class="btn btn-custom-secondary" onclick="closeJoinModal()">Отмена</button>
+            </div>
         </form>
     </div>
 </div>
 
-<!-- Модальное окно для выхода из очереди -->
-<div id="leaveModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5);">
-    <div style="background:white; padding:20px; margin:15% auto; width:300px; border-radius:5px;">
-        <h3>Подтверждение выхода</h3>
+<div id="leaveModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(45, 31, 54, 0.5);">
+    <div style="background:var(--purple-light); padding:20px; margin:15% auto; width:300px; border-radius:12px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);">
+        <h3 class="mb-3">Подтверждение выхода</h3>
         <form id="leaveForm" method="post">
             {% csrf_token %}
-            <p>Вы выходите из очереди на лабу: <span id="leaveLabName"></span></p>
+            <p class="mb-3">Вы выходите из очереди на лабу: <span id="leaveLabName" class="fw-bold"></span></p>
             <input type="hidden" name="work_id" id="leaveWorkId">
-            <label><input type="checkbox" name="has_passed" checked> Я сдал лабу</label>
-            <br>
-            <button type="submit" class="btn btn-danger mt-3">Подтвердить</button>
-            <button type="button" class="btn btn-secondary mt-3" onclick="closeLeaveModal()">Отмена</button>
+            <div class="form-check mb-3">
+                <input type="checkbox" class="form-check-input" name="has_passed" id="hasPassedCheck" checked>
+                <label class="form-check-label" for="hasPassedCheck">Я сдал лабу</label>
+            </div>
+            <div class="d-grid gap-2">
+                <button type="submit" class="btn btn-custom">Подтвердить</button>
+                <button type="button" class="btn btn-custom-secondary" onclick="closeLeaveModal()">Отмена</button>
+            </div>
         </form>
     </div>
 </div>
