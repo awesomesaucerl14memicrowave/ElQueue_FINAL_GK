@@ -1,5 +1,5 @@
 from django.core.management.base import BaseCommand
-from lab_queue_app.models import Subject, PracticalWork, StudyGroup, StudyGroupSubject
+from lab_queue_app.models import Subject, PracticalWork, StudyGroup, StudyGroupSubject, Weekday
 from datetime import datetime
 
 class Command(BaseCommand):
@@ -10,6 +10,24 @@ class Command(BaseCommand):
         ki23_13, _ = StudyGroup.objects.get_or_create(name="KI23-13")
         ki23_14, _ = StudyGroup.objects.get_or_create(name="KI23-14")
         self.stdout.write(self.style.SUCCESS('Successfully created study groups'))
+
+        # Создаем дни недели, если они не существуют
+        weekdays = [
+            ("Понедельник", "Пн", 0),
+            ("Вторник", "Вт", 1),
+            ("Среда", "Ср", 2),
+            ("Четверг", "Чт", 3),
+            ("Пятница", "Пт", 4),
+            ("Суббота", "Сб", 5),
+            ("Воскресенье", "Вс", 6),
+        ]
+        for name, short_name, order in weekdays:
+            Weekday.objects.get_or_create(
+                name=name,
+                short_name=short_name,
+                order=order
+            )
+        self.stdout.write(self.style.SUCCESS('Successfully created weekdays'))
 
         # Очищаем существующие данные предметов и работ
         PracticalWork.objects.all().delete()
