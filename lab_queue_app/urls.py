@@ -20,7 +20,7 @@ urlpatterns = [
     path('register/email/', views.register_email, name='register_email'),
     path('register/verification-code/', views.register_verification_code, name='register_verification_code'),
     path('register/telegram-choice/', views.register_telegram_choice, name='register_telegram_choice'),
-    path('register/telegram-link/', views.telegram_link, name='telegram_link'),
+    path('register/telegram-link/', views.register_telegram_link, name='register_telegram_link'),
     path('register/study-group/', views.register_study_group, name='register_study_group'),
     path('check-telegram-bind/', views.check_telegram_bind, name='check_telegram_bind'),
     path('join-queue/<int:work_id>/', views.join_queue, name='join_queue'),
@@ -36,4 +36,5 @@ urlpatterns = [
     path('check-username/', views.check_username, name='check_username'),
     path('check-email/', views.check_email, name='check_email'),
     path('queue-updates/', views.get_queue_updates, name='queue_updates'),
+    path('check-telegram-status/', views.check_telegram_status, name='check_telegram_status'),
 ]

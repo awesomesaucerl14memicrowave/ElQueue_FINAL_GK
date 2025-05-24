@@ -13,36 +13,89 @@
                             <p class="lead mb-4">Привязка Telegram позволит получать уведомления об изменениях в очереди и управлять своей позицией через бота.</p>
                         </div>
 
-                        {% if deep_link %}
-                            <div class="text-center mb-4">
-                                <a href="{{ deep_link }}" target="_blank" class="btn btn-custom btn-lg w-100">
-                                    <i class="fab fa-telegram me-2"></i>Привязать Telegram
-                                </a>
-                                <div class="alert alert-info rounded-3 shadow-sm mt-3">
-                                    <i class="fas fa-info-circle me-2"></i>После привязки вернитесь и выберите учебную группу.
-                                </div>
-                            </div>
-                        {% else %}
+                        <div id="telegram-binding-section">
                             <div class="d-grid gap-3">
-                                <form method="post" action="">
+                                <button id="bindTelegramBtn" class="btn btn-custom btn-lg w-100">
+                                    <i class="fab fa-telegram me-2"></i>Привязать Telegram
+                                </button>
+                                <form method="post" class="d-grid">
                                     {% csrf_token %}
-                                    <button type="submit" name="link_telegram" class="btn btn-custom btn-lg w-100">
-                                        <i class="fab fa-telegram me-2"></i>Привязать Telegram
-                                    </button>
-                                </form>
-                                <form method="post" action="">
-                                    {% csrf_token %}
-                                    <button type="submit" name="skip" class="btn btn-custom-secondary w-100">
+                                    <button type="submit" name="skip" class="btn btn-custom-secondary btn-lg">
                                         <i class="fas fa-forward me-2"></i>Пропустить
                                     </button>
                                 </form>
                             </div>
-                        {% endif %}
+                        </div>
+
+                        <div id="binding-status" class="mt-4 text-center" style="display: none;">
+                            <div class="spinner-border text-primary mb-3" role="status">
+                                <span class="visually-hidden">Проверка привязки...</span>
+                            </div>
+                            <p class="text-muted">Ожидание привязки Telegram...</p>
+                        </div>
+
+                        <div id="binding-success" class="mt-4 text-center" style="display: none;">
+                            <div class="alert alert-success rounded-3 shadow-sm">
+                                <i class="fas fa-check-circle me-2"></i>Telegram успешно привязан!
+                            </div>
+                            <form method="post" class="d-grid mt-3">
+                                {% csrf_token %}
+                                <button type="submit" name="continue" class="btn btn-custom btn-lg">
+                                    <i class="fas fa-arrow-right me-2"></i>Продолжить регистрацию
+                                </button>
+                            </form>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+
+    <script>
+        let checkInterval;
+        const bindTelegramBtn = document.getElementById('bindTelegramBtn');
+        const bindingStatus = document.getElementById('binding-status');
+        const bindingSuccess = document.getElementById('binding-success');
+        const telegramBindingSection = document.getElementById('telegram-binding-section');
+
+        bindTelegramBtn.addEventListener('click', async function() {
+            const response = await fetch('{% url "register_telegram_link" %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json',
+                }
+            });
+            
+            const data = await response.json();
+            if (data.deep_link) {
+                // Открываем Telegram в новой вкладке
+                window.open(data.deep_link, '_blank');
+                
+                // Показываем статус привязки
+                telegramBindingSection.style.display = 'none';
+                bindingStatus.style.display = 'block';
+                
+                // Начинаем проверять статус привязки
+                checkInterval = setInterval(checkBindingStatus, 3000);
+            }
+        });
+
+        async function checkBindingStatus() {
+            try {
+                const response = await fetch('{% url "check_telegram_status" %}');
+                const data = await response.json();
+                
+                if (data.is_bound) {
+                    clearInterval(checkInterval);
+                    bindingStatus.style.display = 'none';
+                    bindingSuccess.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error checking binding status:', error);
+            }
+        }
+    </script>
 
     <style>
         .lead {
