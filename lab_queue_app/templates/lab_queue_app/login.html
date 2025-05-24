@@ -9,6 +9,25 @@
                         <i class="fas fa-sign-in-alt me-2"></i>Вход в систему
                     </div>
                     <div class="card-body">
+                        {% if form.errors %}
+                            <div class="alert alert-danger rounded-3 shadow-sm mb-4">
+                                <i class="fas fa-exclamation-circle me-2"></i>
+                                {% if form.non_field_errors %}
+                                    {{ form.non_field_errors.0 }}
+                                {% else %}
+                                    Пожалуйста, проверьте правильность введенных данных.
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                        {% if messages %}
+                            {% for message in messages %}
+                                <div class="alert alert-{{ message.tags }} rounded-3 shadow-sm mb-4">
+                                    <i class="fas {% if message.tags == 'success' %}fa-check-circle{% else %}fa-info-circle{% endif %} me-2"></i>
+                                    {{ message }}
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+
                         <form method="post">
                             {% csrf_token %}
                             {% for field in form %}
@@ -20,15 +39,21 @@
                                     {% endif %}
                                     {% if field.errors %}
                                         {% for error in field.errors %}
-                                            <div class="invalid-feedback d-block">{{ error }}</div>
+                                            <div class="invalid-feedback d-block">
+                                                <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
+                                            </div>
                                         {% endfor %}
                                     {% endif %}
                                 </div>
                             {% endfor %}
-                            <div class="d-grid">
+
+                            <div class="d-grid gap-2">
                                 <button type="submit" class="btn btn-custom">
                                     <i class="fas fa-sign-in-alt me-2"></i>Войти
                                 </button>
+                                <a href="{% url 'password_reset_request' %}" class="btn btn-custom-secondary">
+                                    <i class="fas fa-key me-2"></i>Забыли пароль?
+                                </a>
                             </div>
                         </form>
 
@@ -42,7 +67,7 @@
                             {% if next %}
                                 <div class="alert alert-info rounded-3 shadow-sm">
                                     <i class="fas fa-info-circle me-2"></i>
-                                    Пожалуйста, войдите, чтобы получить доступ к настройкам.
+                                    Пожалуйста, войдите, чтобы получить доступ к этой странице.
                                 </div>
                             {% endif %}
                         </div>
@@ -51,4 +76,43 @@
             </div>
         </div>
     </div>
+
+    <style>
+        .form-control {
+            border: 2px solid var(--purple-light);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+        }
+
+        .form-control:focus {
+            border-color: var(--purple-primary);
+            box-shadow: 0 0 0 0.25rem rgba(123, 107, 133, 0.25);
+        }
+
+        .invalid-feedback {
+            color: #dc3545;
+            font-size: 0.875rem;
+            margin-top: 0.25rem;
+        }
+
+        .alert {
+            border: none;
+        }
+
+        .alert-danger {
+            background-color: #fff2f2;
+            color: #dc3545;
+        }
+
+        .alert-info {
+            background-color: #f8f9fa;
+            color: #0dcaf0;
+        }
+
+        .alert-success {
+            background-color: #f0fff4;
+            color: #198754;
+        }
+    </style>
 {% endblock %}
