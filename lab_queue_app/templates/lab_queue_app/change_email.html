@@ -1,52 +1,73 @@
 {% extends 'lab_queue_app/base.html' %}
 {% block title %}Смена почты{% endblock %}
 {% block content %}
-    <h2>Смена почты</h2>
+    <div class="content-section">
+        <h2 class="mb-4">Смена почты</h2>
 
-    {% if error %}
-        <p style="color: red;">{{ error }}</p>
-    {% endif %}
-    {% if message %}
-        <p style="color: green;">{{ message }}</p>
-        <p style="color: orange;">Внимание: используйте только последний полученный код! Все предыдущие коды больше не действуют.</p>
-    {% endif %}
+        {% if error %}
+            <div class="alert alert-danger rounded-3 shadow-sm mb-4">{{ error }}</div>
+        {% endif %}
+        {% if message %}
+            <div class="alert alert-success rounded-3 shadow-sm mb-2">{{ message }}</div>
+            <div class="alert alert-warning rounded-3 shadow-sm mb-4">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                Внимание: используйте только последний полученный код! Все предыдущие коды больше не действуют.
+            </div>
+        {% endif %}
 
-    <form method="post" id="sendForm">
-        {% csrf_token %}
-        <label>Новый email:
-            <input type="email" name="new_email" id="id_email" value="{{ new_email }}" required>
-        </label><br>
-        <button type="submit" name="send_code" id="sendBtn" {% if same_email %}disabled{% endif %}>
-            {% if resend_sent or seconds_left > 0 %}
-                Отправить код повторно
-            {% else %}
-                Отправить код
-            {% endif %}
-        </button>
-    </form>
+        <div class="custom-card mb-4">
+            <div class="card-header-custom">
+                <i class="fas fa-envelope me-2"></i>Изменение email
+            </div>
+            <div class="card-body">
+                <form method="post" id="sendForm" class="mb-4">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="id_email" class="form-label">Новый email:</label>
+                        <input type="email" name="new_email" id="id_email" value="{{ new_email }}" 
+                               class="form-control" required>
+                    </div>
+                    <button type="submit" name="send_code" id="sendBtn" class="btn btn-custom" {% if same_email %}disabled{% endif %}>
+                        {% if resend_sent or seconds_left > 0 %}
+                            <i class="fas fa-paper-plane me-2"></i>Отправить код повторно
+                        {% else %}
+                            <i class="fas fa-paper-plane me-2"></i>Отправить код
+                        {% endif %}
+                    </button>
+                </form>
 
-    {% if show_resend %}
-        <form method="post" id="resendForm" style="margin-top: 10px;">
-            {% csrf_token %}
-            <input type="hidden" name="resend" value="1">
-            <input type="hidden" name="new_email" value="{{ new_email }}">
-            <button type="submit" id="resendBtn">Отправить код повторно</button>
-            {% if show_captcha %}
-                <div style="margin-top:10px;">{{ captcha_form.captcha }}</div>
-                <script src="https://www.google.com/recaptcha/api.js" async defer></script>
-            {% endif %}
-        </form>
-    {% endif %}
+                {% if show_resend %}
+                    <form method="post" id="resendForm" class="mb-4">
+                        {% csrf_token %}
+                        <input type="hidden" name="resend" value="1">
+                        <input type="hidden" name="new_email" value="{{ new_email }}">
+                        <button type="submit" id="resendBtn" class="btn btn-custom">
+                            <i class="fas fa-sync me-2"></i>Отправить код повторно
+                        </button>
+                        {% if show_captcha %}
+                            <div class="mt-3">{{ captcha_form.captcha }}</div>
+                            <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+                        {% endif %}
+                    </form>
+                {% endif %}
 
-    <form method="post" id="codeForm" style="margin-top: 10px;">
-        {% csrf_token %}
-        <label>Код подтверждения:
-            <input type="text" name="code" id="id_code" maxlength="6" pattern="\d{6}" inputmode="numeric" autocomplete="one-time-code" required>
-        </label><br>
-        <button type="submit">Подтвердить</button>
-    </form>
+                <form method="post" id="codeForm">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="id_code" class="form-label">Код подтверждения:</label>
+                        <input type="text" name="code" id="id_code" maxlength="6" 
+                               pattern="\d{6}" inputmode="numeric" autocomplete="one-time-code" 
+                               class="form-control" required>
+                    </div>
+                    <button type="submit" class="btn btn-custom">
+                        <i class="fas fa-check me-2"></i>Подтвердить
+                    </button>
+                </form>
 
-    <div id="timer" style="margin-top: 10px;"></div>
+                <div id="timer" class="mt-3 text-muted"></div>
+            </div>
+        </div>
+    </div>
 
     <script>
         let secondsLeft = {{ seconds_left|default:0 }};

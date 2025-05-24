@@ -2,93 +2,204 @@
 {% load static %}
 
 {% block content %}
-<h1>Настройки</h1>
+<div class="content-section">
+    <h2 class="mb-4">Настройки</h2>
 
-{% if messages %}
-    {% for message in messages %}
-        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
-    {% endfor %}
-{% endif %}
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} rounded-3 shadow-sm">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
 
-<form method="post">
-    {% csrf_token %}
+    <form method="post">
+        {% csrf_token %}
 
-    <!-- ===== Раздел: Обучение и очереди ===== -->
-    <div>
-        <h3>Обучение и очереди</h3>
-        <p>Текущая учебная группа: 
-            {% if user_study_group %}
-                {{ user_study_group.study_group.name }}
-            {% else %}
-                Не выбрана
-            {% endif %}
-        </p>
-        
-        <label for="study_group_input">Изменить учебную группу:</label><br>
-        <input type="text" id="study_group_input" name="study_group_name"
-               placeholder="Например: KI23-13B" autocomplete="off">
+        <!-- Раздел: Обучение и очереди -->
+        <div class="custom-card mb-4">
+            <div class="card-header-custom">
+                <i class="fas fa-graduation-cap me-2"></i>Обучение и очереди
+            </div>
+            <div class="card-body">
+                <div class="mb-4">
+                    <h5 class="mb-3">Текущая учебная группа</h5>
+                    <div class="mb-3">
+                        {% if user_study_group %}
+                            <span class="badge bg-primary">{{ user_study_group.study_group.name }}</span>
+                        {% else %}
+                            <span class="badge bg-warning">Не выбрана</span>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="study_group_input" class="form-label">Изменить учебную группу:</label>
+                        <input type="text" id="study_group_input" name="study_group_name"
+                               class="form-control mb-2" placeholder="Например: KI23-13B" autocomplete="off">
 
-        <select id="study_group_select" size="5">
-            {% for group in study_groups %}
-                <option value="{{ group.name }}" data-id="{{ group.id }}">{{ group.name }}</option>
-            {% endfor %}
-        </select>
+                        <select id="study_group_select" class="form-select" size="5">
+                            {% for group in study_groups %}
+                                <option value="{{ group.name }}" data-id="{{ group.id }}">{{ group.name }}</option>
+                            {% endfor %}
+                        </select>
 
-        <input type="hidden" name="study_group" id="study_group_hidden">
+                        <input type="hidden" name="study_group" id="study_group_hidden">
+                    </div>
+                </div>
 
-        <br><br>
-
-        <label for="subjects_select">Предметы (будут отображаться позже):</label><br>
-        <select id="subjects_select" name="subjects" multiple disabled>
-            {% for subject in subjects %}
-                <option value="{{ subject.id }}">{{ subject.name }}</option>
-            {% endfor %}
-        </select>
-    </div>
-
-    <br>
-
-    <!-- ===== Раздел: Уведомления ===== -->
-    <div>
-        <h3>Уведомления</h3>
-        <label>
-            <input type="checkbox" name="telegram_notifications" {% if profile.telegram_notifications %}checked{% endif %} {% if not profile.telegram_id %}disabled{% endif %}>
-            Уведомления в Telegram
-        </label><br>
-        <label>
-            <input type="checkbox" name="email_notifications" {% if profile.email_notifications %}checked{% endif %}>
-            Уведомления на Email
-        </label>
-    </div>
-
-    <br>
-
-    <!-- ===== Раздел: Безопасность ===== -->
-    <div>
-        <h3>Безопасность</h3>
-
-        <div>
-            <label>Текущий email: {{ user.email }}</label>
-            <a href="{% url 'change_email' %}" class="btn btn-primary" style="margin-left:10px;">Сменить email</a>
+                <div class="form-group">
+                    <label for="subjects_select" class="form-label">Предметы (будут отображаться позже):</label>
+                    <select id="subjects_select" name="subjects" multiple class="form-select" disabled>
+                        {% for subject in subjects %}
+                            <option value="{{ subject.id }}">{{ subject.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
         </div>
 
-        <div>
-            {% if profile.telegram_id %}
-                <p><strong>Telegram ID:</strong> {{ profile.telegram_id }}</p>
-                <a href="{% url 'telegram_unlink_request' %}" class="btn btn-danger">Отвязать Telegram</a>
-            {% else %}
-                <p><strong>Telegram:</strong> Не привязан</p>
-                <a href="{% url 'telegram_link_request' %}" class="btn btn-primary">Привязать Telegram</a>
-            {% endif %}
+        <!-- Раздел: Уведомления -->
+        <div class="custom-card mb-4">
+            <div class="card-header-custom">
+                <i class="fas fa-bell me-2"></i>Уведомления
+            </div>
+            <div class="card-body">
+                <!-- Основные переключатели для каналов уведомлений -->
+                <div class="notification-channels mb-4">
+                    <div class="form-check mb-2">
+                        <input type="checkbox" class="form-check-input" id="browser_notifications" 
+                               name="browser_notifications" {% if profile.browser_notifications %}checked{% endif %}>
+                        <label class="form-check-label" for="browser_notifications">Браузерные уведомления</label>
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="telegram_notifications"
+                               name="telegram_notifications" {% if profile.telegram_notifications %}checked{% endif %} 
+                               {% if not profile.telegram_id %}disabled{% endif %}>
+                        <label class="form-check-label" for="telegram_notifications">Уведомления в Telegram</label>
+                    </div>
+                </div>
+
+                <!-- Детальные настройки уведомлений -->
+                <div class="notification-details">
+                    <h5 class="mb-3">Настройка типов уведомлений</h5>
+                    
+                    <div class="row">
+                        <!-- Браузерные уведомления -->
+                        <div class="col-md-6 mb-4">
+                            <div class="queue-card h-100">
+                                <h6 class="mb-3">Браузерные уведомления</h6>
+                                <div class="notification-options">
+                                    <div class="form-check mb-2">
+                                        <input type="checkbox" class="form-check-input" id="browser_queue_join_leave"
+                                               name="browser_queue_join_leave" {% if profile.browser_queue_join_leave %}checked{% endif %}>
+                                        <label class="form-check-label" for="browser_queue_join_leave">Вход/выход из очереди</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input type="checkbox" class="form-check-input" id="browser_position_change"
+                                               name="browser_position_change" {% if profile.browser_position_change %}checked{% endif %}>
+                                        <label class="form-check-label" for="browser_position_change">Изменение позиции в очереди</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input type="checkbox" class="form-check-input" id="browser_position_3_2"
+                                               name="browser_position_3_2" {% if profile.browser_position_3_2 %}checked{% endif %}>
+                                        <label class="form-check-label" for="browser_position_3_2">Достижение 3-й и 2-й позиции</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input type="checkbox" class="form-check-input" id="browser_position_1"
+                                               name="browser_position_1" {% if profile.browser_position_1 %}checked{% endif %}>
+                                        <label class="form-check-label" for="browser_position_1">Достижение 1-й позиции</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Telegram уведомления -->
+                        <div class="col-md-6 mb-4">
+                            <div class="queue-card h-100">
+                                <h6 class="mb-3">Telegram уведомления</h6>
+                                <div class="notification-options">
+                                    <div class="form-check mb-2">
+                                        <input type="checkbox" class="form-check-input" id="telegram_queue_join_leave"
+                                               name="telegram_queue_join_leave" {% if profile.telegram_queue_join_leave %}checked{% endif %} 
+                                               {% if not profile.telegram_id %}disabled{% endif %}>
+                                        <label class="form-check-label" for="telegram_queue_join_leave">Вход/выход из очереди</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input type="checkbox" class="form-check-input" id="telegram_position_change"
+                                               name="telegram_position_change" {% if profile.telegram_position_change %}checked{% endif %} 
+                                               {% if not profile.telegram_id %}disabled{% endif %}>
+                                        <label class="form-check-label" for="telegram_position_change">Изменение позиции в очереди</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input type="checkbox" class="form-check-input" id="telegram_position_3_2"
+                                               name="telegram_position_3_2" {% if profile.telegram_position_3_2 %}checked{% endif %} 
+                                               {% if not profile.telegram_id %}disabled{% endif %}>
+                                        <label class="form-check-label" for="telegram_position_3_2">Достижение 3-й и 2-й позиции</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input type="checkbox" class="form-check-input" id="telegram_position_1"
+                                               name="telegram_position_1" {% if profile.telegram_position_1 %}checked{% endif %} 
+                                               {% if not profile.telegram_id %}disabled{% endif %}>
+                                        <label class="form-check-label" for="telegram_position_1">Достижение 1-й позиции</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <br>
-        <a href="{% url 'password_reset_request' %}">Сбросить пароль</a>
-    </div>
+        <!-- Раздел: Безопасность -->
+        <div class="custom-card mb-4">
+            <div class="card-header-custom">
+                <i class="fas fa-shield-alt me-2"></i>Безопасность
+            </div>
+            <div class="card-body">
+                <div class="mb-4">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="me-3">
+                            <strong>Email:</strong> {{ user.email }}
+                        </div>
+                        <a href="{% url 'change_email' %}" class="btn btn-custom btn-sm">
+                            <i class="fas fa-envelope me-1"></i>Сменить email
+                        </a>
+                    </div>
 
-    <br><br>
-    <button type="submit">Сохранить изменения</button>
-</form>
+                    <div class="d-flex align-items-center">
+                        <div class="me-3">
+                            <strong>Telegram:</strong>
+                            {% if profile.telegram_id %}
+                                <span class="badge bg-success">ID: {{ profile.telegram_id }}</span>
+                            {% else %}
+                                <span class="badge bg-warning">Не привязан</span>
+                            {% endif %}
+                        </div>
+                        {% if profile.telegram_id %}
+                            <a href="{% url 'telegram_unlink_request' %}" class="btn btn-custom-secondary btn-sm">
+                                <i class="fas fa-unlink me-1"></i>Отвязать Telegram
+                            </a>
+                        {% else %}
+                            <a href="{% url 'telegram_link_request' %}" class="btn btn-custom btn-sm">
+                                <i class="fab fa-telegram me-1"></i>Привязать Telegram
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div>
+                    <a href="{% url 'password_reset_request' %}" class="btn btn-custom">
+                        <i class="fas fa-key me-1"></i>Сбросить пароль
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-grid">
+            <button type="submit" class="btn btn-custom btn-lg">
+                <i class="fas fa-save me-2"></i>Сохранить изменения
+            </button>
+        </div>
+    </form>
+</div>
 
 <!-- ===== JS: Фильтрация групп ===== -->
 <script>
