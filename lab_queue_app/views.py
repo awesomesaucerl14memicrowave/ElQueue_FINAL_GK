@@ -454,32 +454,20 @@ def register_telegram_choice(request):
     if request.method == 'POST':
         if 'skip' in request.POST:
             return redirect('register_study_group')
-        if 'link_telegram' in request.POST:
-            token = TelegramBindToken.objects.create(user=request.user)
-            bot_username = 'plaki_plaki_prod_bot'
-            deep_link = f"https://t.me/{bot_username}?start={token.token}"
-            return redirect(deep_link)
-    print(f"Сессия на telegram_choice: {request.session.get('register_data', 'Отсутствует')}")
+        if 'continue' in request.POST:
+            return redirect('register_study_group')
     return render(request, 'lab_queue_app/register_telegram_choice.html')
 
 def register_telegram_link(request):
-    if 'register_data' not in request.session:
-        return redirect('register')
-
-    if request.user.profile.telegram_id:
-        print(f"Telegram уже привязан: {request.user.profile.telegram_id}")
-        return redirect('register_study_group')
-
     if request.method == 'POST':
         token = TelegramBindToken.objects.create(user=request.user)
         bot_username = 'plaki_plaki_prod_bot'
         deep_link = f"https://t.me/{bot_username}?start={token.token}"
-        return render(request, 'lab_queue_app/register_telegram_link.html', {
-            'deep_link': deep_link,
-            'message': 'Нажмите кнопку ниже, чтобы привязать Telegram.'
+        return JsonResponse({
+            'success': True,
+            'deep_link': deep_link
         })
-
-    return render(request, 'lab_queue_app/register_telegram_link.html')
+    return JsonResponse({'success': False}, status=400)
 
 def register_study_group(request):
     if 'register_data' not in request.session:
@@ -1279,4 +1267,11 @@ def get_queue_updates(request):
     return JsonResponse({
         'timestamp': time.time(),
         'queues': []
+    })
+
+def check_telegram_status(request):
+    """Проверка статуса привязки Telegram"""
+    is_bound = request.user.profile.telegram_id is not None
+    return JsonResponse({
+        'is_bound': is_bound
     })
