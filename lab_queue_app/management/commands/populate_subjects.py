@@ -6,7 +6,12 @@ class Command(BaseCommand):
     help = 'Populate database with subjects and practical works'
 
     def handle(self, *args, **options):
-        # Очищаем существующие данные
+        # Создаем учебные группы, если они не существуют
+        ki23_13, _ = StudyGroup.objects.get_or_create(name="KI23-13")
+        ki23_14, _ = StudyGroup.objects.get_or_create(name="KI23-14")
+        self.stdout.write(self.style.SUCCESS('Successfully created study groups'))
+
+        # Очищаем существующие данные предметов и работ
         PracticalWork.objects.all().delete()
         StudyGroupSubject.objects.all().delete()
         Subject.objects.all().delete()
@@ -132,7 +137,7 @@ class Command(BaseCommand):
 
         # Связываем предметы с учебными группами
         subjects = [db_subject, ksp_subject, misoi_subject, gis_subject, tp_subject]
-        study_groups = StudyGroup.objects.all()
+        study_groups = [ki23_13, ki23_14]  # Используем созданные группы
         
         for study_group in study_groups:
             for subject in subjects:
