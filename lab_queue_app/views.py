@@ -77,9 +77,14 @@ def cabinet(request):
 
 def get_cabinet_data(request):
     """Вспомогательная функция для подготовки данных кабинета."""
+    context = {
+        'now': timezone.now().date(),
+    }
+    
     user_study_groups = UserStudyGroup.objects.filter(user=request.user)
     if not user_study_groups.exists():
-        return {'no_study_group': True, 'profile': request.user.profile}
+        context.update({'no_study_group': True, 'profile': request.user.profile})
+        return context
 
     study_group = user_study_groups.first().study_group
     subjects = Subject.objects.filter(studygroupsubject__study_group=study_group)
@@ -656,6 +661,7 @@ def queue_details(request, work_id):
         'active_participants_count': active_participants.count(),
         'is_in_queue': is_in_queue,
         'user_position': user_position,
+        'now': timezone.now().date(),
     }
     return render(request, 'lab_queue_app/queue_details.html', context)
 

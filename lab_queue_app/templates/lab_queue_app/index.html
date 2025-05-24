@@ -85,37 +85,88 @@
     </div>
 
     <!-- Модальные окна -->
-    <div id="joinModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5);">
-        <div style="background:white; padding:20px; margin:15% auto; width:300px; border-radius:5px;">
-            <h3>Подтверждение</h3>
+    <div id="joinModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(45, 31, 54, 0.5);">
+        <div style="background:var(--purple-light); padding:30px; margin:15% auto; width:90%; max-width:500px; border-radius:12px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);">
+            <h3 class="mb-4">
+                <i class="fas fa-sign-in-alt me-2"></i>Вставание в очередь
+            </h3>
             <form id="joinForm" method="post">
                 {% csrf_token %}
-                <p>Выберите лабораторную работу:</p>
-                <select name="work_id" id="joinWorkId">
-                    <option value="" disabled selected>Выберите лабу</option>
-                </select>
-                <br>
-                <button type="submit" class="btn btn-success mt-3">Подтвердить</button>
-                <button type="button" class="btn btn-secondary mt-3" onclick="closeJoinModal()">Отмена</button>
+                <div class="mb-4">
+                    <label class="form-label fw-medium" for="joinWorkId">Выберите лабораторную работу:</label>
+                    <select name="work_id" id="joinWorkId" class="form-select form-select-lg custom-select">
+                        <option value="" disabled selected>Выберите лабу</option>
+                    </select>
+                </div>
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-custom btn-lg">
+                        <i class="fas fa-sign-in-alt me-2"></i>Подтвердить
+                    </button>
+                    <button type="button" class="btn btn-custom-secondary" onclick="closeJoinModal()">
+                        <i class="fas fa-times me-2"></i>Отмена
+                    </button>
+                </div>
             </form>
         </div>
     </div>
 
     <!-- Модальное окно для выхода из очереди -->
-    <div id="leaveModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5);">
-        <div style="background:white; padding:20px; margin:15% auto; width:300px; border-radius:5px;">
-            <h3>Подтверждение выхода</h3>
+    <div id="leaveModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(45, 31, 54, 0.5);">
+        <div style="background:var(--purple-light); padding:20px; margin:15% auto; width:300px; border-radius:12px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);">
+            <h3 class="mb-3">Подтверждение выхода</h3>
             <form id="leaveForm" method="post">
                 {% csrf_token %}
-                <p>Вы выходите из очереди на лабу: <span id="leaveLabName"></span></p>
+                <p class="mb-3">Вы выходите из очереди на лабу: <span id="leaveLabName" class="fw-bold"></span></p>
                 <input type="hidden" name="work_id" id="leaveWorkId">
-                <label><input type="checkbox" name="has_passed" checked> Я сдал лабу</label>
-                <br>
-                <button type="submit" class="leave-submit-btn">Подтвердить</button>
-                <button type="button" onclick="closeLeaveModal()">Отмена</button>
+                <div class="form-check mb-3">
+                    <input type="checkbox" class="form-check-input" name="has_passed" id="hasPassedCheck" checked>
+                    <label class="form-check-label" for="hasPassedCheck">Я сдал лабу</label>
+                </div>
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-custom leave-submit-btn">
+                        <i class="fas fa-check me-2"></i>Подтвердить
+                    </button>
+                    <button type="button" class="btn btn-custom-secondary" onclick="closeLeaveModal()">
+                        <i class="fas fa-times me-2"></i>Отмена
+                    </button>
+                </div>
             </form>
         </div>
     </div>
+
+    <style>
+        .custom-select {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            font-size: 1rem;
+            line-height: 1.5;
+            color: var(--purple-dark);
+            background-color: #fff;
+            border: 2px solid var(--purple-light);
+            border-radius: 8px;
+            transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+        }
+
+        .custom-select:focus {
+            border-color: var(--purple-primary);
+            outline: 0;
+            box-shadow: 0 0 0 0.25rem rgba(123, 107, 133, 0.25);
+        }
+
+        .custom-select option {
+            padding: 10px;
+            font-size: 1rem;
+        }
+
+        #joinModal .modal-content {
+            border: none;
+            border-radius: 12px;
+        }
+
+        #joinWorkId {
+            min-height: 50px;
+        }
+    </style>
 
     <script>
         // Функции для модальных окон
@@ -132,7 +183,10 @@
             const works = availableWorks.split(',').map(workStr => {
                 const parts = workStr.split('|').map(s => s.trim());
                 if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
-                    return { id: parts[0], name: `${parts[1]} | ${parts[2]}` };
+                    return { 
+                        id: parts[0], 
+                        name: `Лаба ${parts[1]} - ${parts[2]}`
+                    };
                 }
                 return null;
             }).filter(Boolean);
@@ -199,7 +253,8 @@
             if (form.classList.contains('mark-served-form') || 
                 form.classList.contains('cancel-served-form') || 
                 form.querySelector('.join-submit-btn') || 
-                form.querySelector('.leave-submit-btn')) {
+                form.querySelector('.leave-submit-btn') ||
+                form.id === 'joinForm') {
                 e.preventDefault();
                 
                 const formData = new FormData(form);
@@ -221,23 +276,8 @@
                 })
                 .then(data => {
                     if (data.success) {
-                        if (form.classList.contains('mark-served-form') || form.classList.contains('cancel-served-form')) {
-                            const workId = form.dataset.workId;
-                            fetchCabinetSection('subjects', workId);
-                            fetchCabinetSection('queue-cards');
-                        } else if (form.querySelector('.join-submit-btn')) {
-                            fetchCabinetSection('queues');
-                            fetchCabinetSection('subjects');
-                            fetchCabinetSection('queue-cards');
-                            showToast(data.message || 'Вы успешно встали в очередь', 3000);
-                        } else if (form.querySelector('.leave-submit-btn')) {
-                            fetchCabinetSection('queues');
-                            fetchCabinetSection('subjects');
-                            fetchCabinetSection('queue-cards');
-                            showToast(data.message || 'Вы успешно вышли из очереди', 3000);
-                        }
-                        closeJoinModal();
-                        closeLeaveModal();
+                        // Refresh the entire page to ensure consistent state
+                        window.location.reload();
                     } else {
                         showToast(data.error || 'Произошла ошибка', 3000);
                     }

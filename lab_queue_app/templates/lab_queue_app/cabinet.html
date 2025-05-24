@@ -72,6 +72,11 @@
                                                     {% if item.participant and item.participant.status == 'active' %}
                                                         <span class="badge bg-primary">В очереди (позиция: {{ item.participant.list_position }})</span>
                                                     {% endif %}
+                                                    {% if item.work.deadline %}
+                                                        <span class="badge {% if item.work.deadline|date:'Y-m-d' < now|date:'Y-m-d' %}bg-danger{% else %}bg-warning{% endif %}">
+                                                            <i class="fas fa-clock me-1"></i>Дедлайн: {{ item.work.deadline|date:"d.m.Y" }}
+                                                        </span>
+                                                    {% endif %}
                                                 </div>
                                                 <div class="btn-group">
                                                     {% if item.is_served %}

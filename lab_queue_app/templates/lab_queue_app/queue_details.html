@@ -55,6 +55,19 @@
                     </div>
 
                     <div class="mb-4">
+                        <h6 class="text-muted mb-2">Дедлайн</h6>
+                        {% if work.deadline %}
+                            <p class="mb-0">
+                                <span class="badge {% if work.deadline|date:'Y-m-d' < now|date:'Y-m-d' %}bg-danger{% else %}bg-warning{% endif %}">
+                                    <i class="fas fa-clock me-1"></i>{{ work.deadline|date:"d.m.Y" }}
+                                </span>
+                            </p>
+                        {% else %}
+                            <p class="mb-0 text-muted">Не указан</p>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-4">
                         <h6 class="text-muted mb-2">Ваша позиция</h6>
                         {% if is_in_queue %}
                             {% if user_position == 1 %}

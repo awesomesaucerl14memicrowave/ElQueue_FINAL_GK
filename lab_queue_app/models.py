@@ -60,6 +60,7 @@ class PracticalWork(models.Model):
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
     ekurs_link = models.URLField(blank=True, null=True)
     sequence_number = models.IntegerField(unique=False)
+    deadline = models.DateField(blank=True, null=True)
 
     def __str__(self):
         return f"{self.name} (Subject: {self.subject.name})"
