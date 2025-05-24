@@ -1,18 +1,68 @@
 {% extends 'lab_queue_app/base.html' %}
 {% block title %}Регистрация - Выбор Telegram{% endblock %}
 {% block content %}
-    <h2>Регистрация - Выбор Telegram</h2>
-    {% if deep_link %}
-        <p>Для привязки Telegram нажмите: <a href="{{ deep_link }}" target="_blank">Привязать Telegram</a></p>
-        <p>После привязки вернитесь и выберите учебную группу.</p>
-    {% else %}
-        <form method="post" action="">
-            {% csrf_token %}
-            <button type="submit" name="link_telegram">Привязать Telegram</button>
-        </form>
-        <form method="post" action="">
-            {% csrf_token %}
-            <button type="submit" name="skip">Пропустить</button>
-        </form>
-    {% endif %}
+    <div class="content-section">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="custom-card">
+                    <div class="card-header-custom">
+                        <i class="fas fa-telegram me-2"></i>Привязка Telegram
+                    </div>
+                    <div class="card-body">
+                        <div class="text-center mb-4">
+                            <p class="lead mb-4">Привязка Telegram позволит получать уведомления об изменениях в очереди и управлять своей позицией через бота.</p>
+                        </div>
+
+                        {% if deep_link %}
+                            <div class="text-center mb-4">
+                                <a href="{{ deep_link }}" target="_blank" class="btn btn-custom btn-lg w-100">
+                                    <i class="fab fa-telegram me-2"></i>Привязать Telegram
+                                </a>
+                                <div class="alert alert-info rounded-3 shadow-sm mt-3">
+                                    <i class="fas fa-info-circle me-2"></i>После привязки вернитесь и выберите учебную группу.
+                                </div>
+                            </div>
+                        {% else %}
+                            <div class="d-grid gap-3">
+                                <form method="post" action="">
+                                    {% csrf_token %}
+                                    <button type="submit" name="link_telegram" class="btn btn-custom btn-lg w-100">
+                                        <i class="fab fa-telegram me-2"></i>Привязать Telegram
+                                    </button>
+                                </form>
+                                <form method="post" action="">
+                                    {% csrf_token %}
+                                    <button type="submit" name="skip" class="btn btn-custom-secondary w-100">
+                                        <i class="fas fa-forward me-2"></i>Пропустить
+                                    </button>
+                                </form>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .lead {
+            color: var(--header-color);
+            font-size: 1.1rem;
+        }
+
+        .alert-info {
+            background-color: var(--purple-light);
+            color: var(--header-color);
+            border: 2px solid var(--accent-secondary);
+        }
+
+        .btn-lg {
+            padding: 1rem 1.5rem;
+            font-size: 1.1rem;
+        }
+
+        .fab.fa-telegram {
+            font-size: 1.2rem;
+        }
+    </style>
 {% endblock %}

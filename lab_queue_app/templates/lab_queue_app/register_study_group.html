@@ -1,16 +1,86 @@
 {% extends 'lab_queue_app/base.html' %}
 {% block title %}Регистрация - Учебная группа{% endblock %}
 {% block content %}
-    <h2>Регистрация - Учебная группа</h2>
-    <form method="post">
-        {% csrf_token %}
-        <label>Учебная группа:
-            <select name="study_group" required>
-                {% for group in study_groups %}
-                    <option value="{{ group.id }}">{{ group.name }}</option>
-                {% endfor %}
-            </select>
-        </label><br>
-        <button type="submit">Завершить</button>
-    </form>
+    <div class="content-section">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="custom-card">
+                    <div class="card-header-custom">
+                        <i class="fas fa-users me-2"></i>Выбор учебной группы
+                    </div>
+                    <div class="card-body">
+                        <div class="text-center mb-4">
+                            <p class="lead">Выберите свою учебную группу для корректного отображения доступных лабораторных работ.</p>
+                        </div>
+
+                        {% if error %}
+                            <div class="alert alert-danger rounded-3 shadow-sm mb-4">
+                                <i class="fas fa-exclamation-circle me-2"></i>{{ error }}
+                            </div>
+                        {% endif %}
+
+                        <form method="post">
+                            {% csrf_token %}
+                            <div class="mb-4">
+                                <label class="form-label" for="study_group">Учебная группа:</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i class="fas fa-users"></i>
+                                    </span>
+                                    <select name="study_group" id="study_group" class="form-select form-select-lg" required>
+                                        <option value="" disabled selected>Выберите группу</option>
+                                        {% for group in study_groups %}
+                                            <option value="{{ group.id }}">{{ group.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-custom btn-lg">
+                                    <i class="fas fa-check me-2"></i>Завершить регистрацию
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .lead {
+            color: var(--header-color);
+            font-size: 1.1rem;
+        }
+
+        .form-select {
+            border: 2px solid var(--purple-light);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            font-size: 1rem;
+            transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+        }
+
+        .form-select:focus {
+            border-color: var(--purple-primary);
+            box-shadow: 0 0 0 0.25rem rgba(123, 107, 133, 0.25);
+        }
+
+        .input-group-text {
+            background-color: var(--purple-light);
+            border: 2px solid var(--purple-light);
+            color: var(--header-color);
+        }
+
+        .btn-lg {
+            padding: 1rem 1.5rem;
+            font-size: 1.1rem;
+        }
+
+        .alert-danger {
+            background-color: #fff2f2;
+            color: #dc3545;
+            border: none;
+        }
+    </style>
 {% endblock %}
