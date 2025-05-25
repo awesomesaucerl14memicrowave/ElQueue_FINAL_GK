@@ -598,9 +598,9 @@ def leave_queue(request, work_id):
             if participant:
                 if has_passed:
                     participant.status = 'served'
+                    participant.save()
                 else:
-                    participant.status = 'left'
-                participant.save()
+                    participant.delete()
                 
                 WaitingListParticipant.recalculate_positions(participant.practical_work.subject_id)
                 

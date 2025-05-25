@@ -1,21 +1,38 @@
-<li class="work-item" data-work-id="{{ work.id }}">
-    Лаба {{ work.sequence_number }} - {{ work.name }}
-    {% if is_served %}
-        <span>Сдано</span>
-        <form method="post" action="{% url 'cancel_served' work.id %}" class="cancel-served-form" style="display:inline;" data-work-id="{{ work.id }}">
-            {% csrf_token %}
-            <button type="submit" class="cancel-served-btn">Отметить несданной</button>
-        </form>
-    {% else %}
-        <form method="post" action="{% url 'mark_served' work.id %}" class="mark-served-form" style="display:inline;" data-work-id="{{ work.id }}">
-            {% csrf_token %}
-            <button type="submit" class="mark-served-btn">Отметить сданной</button>
-        </form>
-        <button class="join-queue-btn" onclick="openJoinModal({{ work.id }}, '{{ work.sequence_number }} {{ work.name }}', '{{ available_works_str|escapejs }}')">
-            Встать в очередь
-        </button>
-        {% if participant and participant.status == 'active' %}
-            <span>В очереди (позиция: {{ participant.list_position }})</span>
-        {% endif %}
-    {% endif %}
-</li>
+<div class="queue-item work-item" data-work-id="{{ work.id }}">
+    <div class="d-flex justify-content-between align-items-center flex-wrap">
+        <div class="mb-2 mb-md-0">
+            <h5 class="mb-1">Лаба {{ work.sequence_number }} - {{ work.name }}</h5>
+            {% if participant and participant.status == 'active' %}
+                <span class="badge bg-primary">В очереди (позиция: {{ participant.list_position }})</span>
+            {% endif %}
+            {% if work.deadline %}
+                <span class="badge {% if work.deadline|date:'Y-m-d' < now|date:'Y-m-d' %}bg-danger{% else %}bg-warning{% endif %}">
+                    <i class="fas fa-clock me-1"></i>Дедлайн: {{ work.deadline|date:"d.m.Y" }}
+                </span>
+            {% endif %}
+        </div>
+        <div class="btn-group">
+            {% if is_served %}
+                <span class="badge bg-success me-2">Сдано</span>
+                <form method="post" action="{% url 'cancel_served' work.id %}" class="cancel-served-form d-inline" data-work-id="{{ work.id }}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-custom-secondary btn-sm">
+                        <i class="fas fa-times me-1"></i>Отметить несданной
+                    </button>
+                </form>
+            {% else %}
+                <form method="post" action="{% url 'mark_served' work.id %}" class="mark-served-form d-inline me-2" data-work-id="{{ work.id }}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-custom btn-sm">
+                        <i class="fas fa-check me-1"></i>Отметить сданной
+                    </button>
+                </form>
+                <button class="btn btn-custom btn-sm join-queue-btn"
+                        data-works="{{ available_works_str|escapejs }}"
+                        onclick="openJoinModal({{ work.id }}, '{{ work.sequence_number }} {{ work.name }}', this.getAttribute('data-works'), true)">
+                    <i class="fas fa-sign-in-alt me-1"></i>Встать в очередь
+                </button>
+            {% endif %}
+        </div>
+    </div>
+</div>

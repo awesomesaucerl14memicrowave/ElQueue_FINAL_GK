@@ -1,48 +1,65 @@
 <div id="subjects-section">
     {% if subjects_with_works %}
         {% for subject_item in subjects_with_works %}
-            <div class="subject-section" data-subject-id="{{ subject_item.subject.id }}">
-                <h4>
-                    {{ subject_item.subject.name }} - 
-                    Расписание: {{ subject_item.schedule_text }}
-                    {% if subject_item.is_running %}
-                        (идёт)
-                    {% else %}
-                        {% if subject_item.next_date %}
-                            (следующая пара: {{ subject_item.next_date }})
-                        {% endif %}
-                    {% endif %}
-                </h4>
-                <ul class="works-list">
-                    {% for item in subject_item.works %}
-                        <li class="work-item" data-work-id="{{ item.work.id }}">
-                            Лаба {{ item.work.sequence_number }} - {{ item.work.name }}
-                            {% if item.is_served %}
-                                <span>Сдано</span>
-                                <form method="post" action="{% url 'cancel_served' item.work.id %}" class="cancel-served-form" style="display:inline;" data-work-id="{{ item.work.id }}">
-                                    {% csrf_token %}
-                                    <button type="submit" class="cancel-served-btn">Отметить несданной</button>
-                                </form>
-                            {% else %}
-                                <form method="post" action="{% url 'mark_served' item.work.id %}" class="mark-served-form" style="display:inline;" data-work-id="{{ item.work.id }}">
-                                    {% csrf_token %}
-                                    <button type="submit" class="mark-served-btn">Отметить сданной</button>
-                                </form>
-                                <button class="join-queue-btn"
-                                        data-works="{{ item.available_works_str|escapejs }}"
-                                        onclick="openJoinModal({{ item.work.id }}, '{{ item.work.sequence_number }} {{ item.work.name }}', this.getAttribute('data-works'))">
-                                    Встать в очередь
-                                </button>
-                                {% if item.participant and item.participant.status == 'active' %}
-                                    <span>В очереди (позиция: {{ item.participant.list_position }})</span>
-                                {% endif %}
+            <div class="subject-section mb-4" data-subject-id="{{ subject_item.subject.id }}">
+                <h4 class="mb-3">
+                    {{ subject_item.subject.name }}
+                    <small class="text-muted d-block mt-1">
+                        <i class="fas fa-calendar me-2"></i>{{ subject_item.schedule_text }}
+                        {% if subject_item.is_running %}
+                            <span class="badge bg-success ms-2">идёт</span>
+                        {% else %}
+                            {% if subject_item.next_date %}
+                                <span class="badge bg-info ms-2">следующая пара: {{ subject_item.next_date }}</span>
                             {% endif %}
-                        </li>
+                        {% endif %}
+                    </small>
+                </h4>
+                <div class="works-list">
+                    {% for item in subject_item.works %}
+                        <div class="queue-item work-item" data-work-id="{{ item.work.id }}">
+                            <div class="d-flex justify-content-between align-items-center flex-wrap">
+                                <div class="mb-2 mb-md-0">
+                                    <h5 class="mb-1">Лаба {{ item.work.sequence_number }} - {{ item.work.name }}</h5>
+                                    {% if item.participant and item.participant.status == 'active' %}
+                                        <span class="badge bg-primary">В очереди (позиция: {{ item.participant.list_position }})</span>
+                                    {% endif %}
+                                    {% if item.work.deadline %}
+                                        <span class="badge {% if item.work.deadline|date:'Y-m-d' < now|date:'Y-m-d' %}bg-danger{% else %}bg-warning{% endif %}">
+                                            <i class="fas fa-clock me-1"></i>Дедлайн: {{ item.work.deadline|date:"d.m.Y" }}
+                                        </span>
+                                    {% endif %}
+                                </div>
+                                <div class="btn-group">
+                                    {% if item.is_served %}
+                                        <span class="badge bg-success me-2">Сдано</span>
+                                        <form method="post" action="{% url 'cancel_served' item.work.id %}" class="cancel-served-form d-inline" data-work-id="{{ item.work.id }}">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-custom-secondary btn-sm">
+                                                <i class="fas fa-times me-1"></i>Отметить несданной
+                                            </button>
+                                        </form>
+                                    {% else %}
+                                        <form method="post" action="{% url 'mark_served' item.work.id %}" class="mark-served-form d-inline me-2" data-work-id="{{ item.work.id }}">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-custom btn-sm">
+                                                <i class="fas fa-check me-1"></i>Отметить сданной
+                                            </button>
+                                        </form>
+                                        <button class="btn btn-custom btn-sm join-queue-btn"
+                                                data-works="{{ item.available_works_str|escapejs }}"
+                                                onclick="openJoinModal({{ item.work.id }}, '{{ item.work.sequence_number }} {{ item.work.name }}', this.getAttribute('data-works'), true)">
+                                            <i class="fas fa-sign-in-alt me-1"></i>Встать в очередь
+                                        </button>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
                     {% endfor %}
-                </ul>
+                </div>
             </div>
         {% endfor %}
     {% else %}
-        <p>У вас нет предметов. Обратитесь к администратору, чтобы добавить предметы для вашей группы.</p>
+        <p class="text-muted mb-0">У вас нет предметов. Обратитесь к администратору, чтобы добавить предметы для вашей группы.</p>
     {% endif %}
 </div>
