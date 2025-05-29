@@ -1127,6 +1127,31 @@ def telegram_unlink_request(request):
     error, message = None, None
     captcha_form = ResendCaptchaForm(request.POST or None) if show_captcha else None
 
+    # Генерируем и отправляем код при первом посещении страницы
+    if not data.get('code'):
+        code = str(random.randint(100000, 999999))
+        data.update({
+            'code': code,
+            'last_code_sent': now,
+            'attempts': attempts + [now],
+        })
+        request.session[session_key] = data
+        request.session.modified = True
+        
+        try:
+            send_mail(
+                'Код для отвязки Telegram',
+                f'Ваш код подтверждения для отвязки Telegram: {code}',
+                None,
+                [request.user.email],
+                fail_silently=False,
+            )
+            message = 'Код отправлен на ваш email.'
+            print(f"Initial code sent to {request.user.email}: {code}")  # Для отладки
+        except Exception as e:
+            error = f'Ошибка при отправке письма: {e}'
+            print(f"Error sending initial code: {e}")  # Для отладки
+
     if request.method == 'POST':
         if 'resend' in request.POST:
             if len(attempts) >= max_attempts:
@@ -1159,16 +1184,32 @@ def telegram_unlink_request(request):
                     error = f'Ошибка при отправке письма: {e}'
 
                 seconds_left = settings.VERIFICATION_CODE_RESEND_TIMEOUT
-
-        return render(request, 'lab_queue_app/telegram_unlink_code.html', {
-            'email': request.user.email,
-            'seconds_left': seconds_left,
-            'resend_timeout': settings.VERIFICATION_CODE_RESEND_TIMEOUT,
-            'show_captcha': show_captcha,
-            'captcha_form': captcha_form,
-            'error': error,
-            'message': message,
-        })
+        elif 'code' in request.POST:
+            input_code = request.POST.get('code')
+            stored_code = data.get('code')
+            
+            if not stored_code:
+                messages.error(request, 'Код не был сгенерирован. Начните процесс заново.')
+                return redirect('telegram_unlink_request')
+                
+            if input_code != stored_code:
+                messages.error(request, 'Неверный код.')
+                return render(request, 'lab_queue_app/telegram_unlink_code.html', {
+                    'email': request.user.email,
+                    'seconds_left': 0,
+                    'resend_timeout': settings.VERIFICATION_CODE_RESEND_TIMEOUT,
+                    'show_captcha': False,
+                })
+            
+            # Если код верный, отвязываем Telegram
+            profile = request.user.profile
+            profile.telegram_id = None
+            profile.telegram_notifications = False
+            profile.save()
+            request.session.pop(session_key, None)
+            TelegramChangeAttempt.objects.get_or_create(user=request.user)[0].reset()
+            messages.success(request, "Telegram аккаунт успешно отвязан.")
+            return redirect('user_settings')
 
     return render(request, 'lab_queue_app/telegram_unlink_code.html', {
         'email': request.user.email,
@@ -1176,6 +1217,8 @@ def telegram_unlink_request(request):
         'resend_timeout': settings.VERIFICATION_CODE_RESEND_TIMEOUT,
         'show_captcha': show_captcha,
         'captcha_form': captcha_form,
+        'error': error,
+        'message': message,
     })
 
 @login_required

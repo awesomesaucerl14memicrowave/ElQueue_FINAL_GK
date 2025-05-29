@@ -8,6 +8,14 @@
         <p style="color: orange;">Внимание: используйте только последний полученный код.</p>
     {% endif %}
 
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert {% if message.tags %}alert-{{ message.tags }}{% endif %}">
+                {{ message }}
+            </div>
+        {% endfor %}
+    {% endif %}
+
     <form method="post" id="resendForm">
         {% csrf_token %}
         <p>Email: <strong>{{ email }}</strong></p>
@@ -32,33 +40,86 @@
     <div id="timer" style="margin-top: 10px;"></div>
 
     <script>
-        let secondsLeft = Number({{ seconds_left|default:0 }});
-        const resendTimeout = Number({{ resend_timeout|default:60 }});
-        const resendBtn = document.getElementById('resendBtn');
-        const timerDiv = document.getElementById('timer');
-        const codeInput = document.getElementById('id_code');
-        const codeForm = document.getElementById('codeForm');
+        document.addEventListener('DOMContentLoaded', function() {
+            let secondsLeft = {{ seconds_left|default:0 }};
+            const resendTimeout = {{ resend_timeout|default:60 }};
+            const resendBtn = document.getElementById('resendBtn');
+            const timerDiv = document.getElementById('timer');
+            const codeInput = document.getElementById('id_code');
+            const codeForm = document.getElementById('codeForm');
 
-        function updateTimer() {
-            if (secondsLeft > 0) {
-                resendBtn.disabled = true;
-                resendBtn.textContent = "Отправить код повторно";
-                timerDiv.textContent = "Повторная отправка доступна через " + secondsLeft + " сек.";
-                secondsLeft--;
-                setTimeout(updateTimer, 1000);
-            } else {
-                resendBtn.disabled = false;
-                resendBtn.textContent = "Отправить код повторно";
-                timerDiv.textContent = "";
+            function updateTimer() {
+                if (secondsLeft > 0) {
+                    resendBtn.disabled = true;
+                    resendBtn.textContent = "Отправить код повторно";
+                    timerDiv.textContent = "Повторная отправка доступна через " + secondsLeft + " сек.";
+                    secondsLeft--;
+                    setTimeout(updateTimer, 1000);
+                } else {
+                    resendBtn.disabled = false;
+                    resendBtn.textContent = "Отправить код повторно";
+                    timerDiv.textContent = "";
+                }
             }
-        }
 
-        updateTimer();
+            updateTimer();
 
-        codeInput.addEventListener('input', function() {
-            if (/^\d{6}$/.test(codeInput.value)) {
-                codeForm.submit();
-            }
+            // Автоматическая отправка формы при вводе 6 цифр
+            codeInput.addEventListener('input', function() {
+                if (/^\d{6}$/.test(this.value)) {
+                    codeForm.submit();
+                }
+            });
+
+            // Добавляем обработку ошибок при отправке формы
+            codeForm.addEventListener('submit', function(e) {
+                const code = codeInput.value;
+                if (!/^\d{6}$/.test(code)) {
+                    e.preventDefault();
+                    alert('Пожалуйста, введите 6 цифр');
+                }
+            });
         });
     </script>
+
+    <style>
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        .alert {
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 4px;
+        }
+        .alert-error {
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+        .alert-success {
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+        input[type="text"] {
+            padding: 0.5rem;
+            font-size: 1rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 200px;
+        }
+        button {
+            padding: 0.5rem 1rem;
+            font-size: 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+    </style>
 {% endblock %}
