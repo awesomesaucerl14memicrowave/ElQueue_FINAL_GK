@@ -64,11 +64,6 @@
             <div class="card-body">
                 <!-- Основные переключатели для каналов уведомлений -->
                 <div class="notification-channels mb-4">
-                    <div class="form-check mb-2">
-                        <input type="checkbox" class="form-check-input" id="browser_notifications" 
-                               name="browser_notifications" {% if profile.browser_notifications %}checked{% endif %}>
-                        <label class="form-check-label" for="browser_notifications">Браузерные уведомления</label>
-                    </div>
                     <div class="form-check">
                         <input type="checkbox" class="form-check-input" id="telegram_notifications"
                                name="telegram_notifications" {% if profile.telegram_notifications %}checked{% endif %} 
@@ -82,37 +77,8 @@
                     <h5 class="mb-3">Настройка типов уведомлений</h5>
                     
                     <div class="row">
-                        <!-- Браузерные уведомления -->
-                        <div class="col-md-6 mb-4">
-                            <div class="queue-card h-100">
-                                <h6 class="mb-3">Браузерные уведомления</h6>
-                                <div class="notification-options">
-                                    <div class="form-check mb-2">
-                                        <input type="checkbox" class="form-check-input" id="browser_queue_join_leave"
-                                               name="browser_queue_join_leave" {% if profile.browser_queue_join_leave %}checked{% endif %}>
-                                        <label class="form-check-label" for="browser_queue_join_leave">Вход/выход из очереди</label>
-                                    </div>
-                                    <div class="form-check mb-2">
-                                        <input type="checkbox" class="form-check-input" id="browser_position_change"
-                                               name="browser_position_change" {% if profile.browser_position_change %}checked{% endif %}>
-                                        <label class="form-check-label" for="browser_position_change">Изменение позиции в очереди</label>
-                                    </div>
-                                    <div class="form-check mb-2">
-                                        <input type="checkbox" class="form-check-input" id="browser_position_3_2"
-                                               name="browser_position_3_2" {% if profile.browser_position_3_2 %}checked{% endif %}>
-                                        <label class="form-check-label" for="browser_position_3_2">Достижение 3-й и 2-й позиции</label>
-                                    </div>
-                                    <div class="form-check">
-                                        <input type="checkbox" class="form-check-input" id="browser_position_1"
-                                               name="browser_position_1" {% if profile.browser_position_1 %}checked{% endif %}>
-                                        <label class="form-check-label" for="browser_position_1">Достижение 1-й позиции</label>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
                         <!-- Telegram уведомления -->
-                        <div class="col-md-6 mb-4">
+                        <div class="col-12 mb-4">
                             <div class="queue-card h-100">
                                 <h6 class="mb-3">Telegram уведомления</h6>
                                 <div class="notification-options">
