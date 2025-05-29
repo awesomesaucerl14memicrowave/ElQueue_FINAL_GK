@@ -71,87 +71,87 @@
     </style>
 
     <script>
-        {% if deep_link %}
-            let checkInterval;
-            let retryCount = 0;
-            const maxRetries = 3;
-            const baseDelay = 3000;
-            const maxDelay = 10000;
+        document.addEventListener('DOMContentLoaded', function() {
+            {% if deep_link %}
+                let checkInterval;
+                let retryCount = 0;
+                const maxRetries = 10; // Увеличиваем количество попыток
+                const baseDelay = 2000; // Уменьшаем базовую задержку
+                const maxDelay = 5000; // Уменьшаем максимальную задержку
 
-            function getCookie(name) {
-                let cookieValue = null;
-                if (document.cookie && document.cookie !== '') {
-                    const cookies = document.cookie.split(';');
-                    for (let i = 0; i < cookies.length; i++) {
-                        const cookie = cookies[i].trim();
-                        if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                            break;
+                function getCookie(name) {
+                    let cookieValue = null;
+                    if (document.cookie && document.cookie !== '') {
+                        const cookies = document.cookie.split(';');
+                        for (let i = 0; i < cookies.length; i++) {
+                            const cookie = cookies[i].trim();
+                            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                                break;
+                            }
                         }
                     }
+                    return cookieValue;
                 }
-                return cookieValue;
-            }
 
-            function showError() {
-                document.getElementById('error-message').style.display = 'block';
-                document.getElementById('status-message').style.display = 'none';
-            }
+                function showError() {
+                    document.getElementById('error-message').style.display = 'block';
+                    document.getElementById('status-message').style.display = 'none';
+                }
 
-            function hideError() {
-                document.getElementById('error-message').style.display = 'none';
-            }
+                function hideError() {
+                    document.getElementById('error-message').style.display = 'none';
+                }
 
-            function calculateDelay() {
-                // Экспоненциальная задержка с ограничением
-                return Math.min(baseDelay * Math.pow(2, retryCount), maxDelay);
-            }
+                function calculateDelay() {
+                    return Math.min(baseDelay * Math.pow(1.5, retryCount), maxDelay);
+                }
 
-            async function checkTelegramBind() {
-                try {
-                    const response = await fetch("{% url 'check_telegram_bind' %}", {
-                        method: "GET",
-                        headers: {
-                            "X-Requested-With": "XMLHttpRequest",
-                            "X-CSRFToken": getCookie('csrftoken')
-                        }
-                    });
+                async function checkTelegramBind() {
+                    try {
+                        const response = await fetch("{% url 'check_telegram_bind' %}", {
+                            method: "GET",
+                            headers: {
+                                "X-Requested-With": "XMLHttpRequest",
+                                "X-CSRFToken": getCookie('csrftoken')
+                            }
+                        });
 
-                    if (!response.ok) throw new Error('Network response was not ok');
-                    
-                    const data = await response.json();
-                    
-                    if (data.is_bound) {
-                        clearInterval(checkInterval);
-                        hideError();
-                        document.getElementById('status-message').style.display = 'block';
-                        setTimeout(() => {
-                            window.location.href = "{% url 'user_settings' %}";
-                        }, 2000);
-                    } else {
-                        retryCount++;
-                        if (retryCount >= maxRetries) {
-                            showError();
-                            clearInterval(checkInterval);
+                        if (!response.ok) throw new Error('Network response was not ok');
+                        
+                        const data = await response.json();
+                        
+                        if (data.is_bound) {
+                            hideError();
+                            document.getElementById('status-message').style.display = 'block';
+                            setTimeout(() => {
+                                window.location.href = "{% url 'user_settings' %}";
+                            }, 2000);
                         } else {
-                            setTimeout(checkTelegramBind, calculateDelay());
+                            retryCount++;
+                            if (retryCount >= maxRetries) {
+                                showError();
+                            } else {
+                                setTimeout(checkTelegramBind, calculateDelay());
+                            }
                         }
+                    } catch (error) {
+                        console.error('Error checking binding status:', error);
+                        showError();
                     }
-                } catch (error) {
-                    console.error('Error checking binding status:', error);
-                    showError();
-                    clearInterval(checkInterval);
                 }
-            }
 
-            function retryCheck() {
+                function retryCheck() {
+                    hideError();
+                    retryCount = 0;
+                    checkTelegramBind();
+                }
+
+                // Скрываем сообщения об ошибках при загрузке
                 hideError();
-                retryCount = 0;
+                // Начинаем проверку при загрузке страницы
                 checkTelegramBind();
-            }
-
-            // Начинаем проверку при загрузке страницы
-            checkTelegramBind();
-        {% endif %}
+            {% endif %}
+        });
     </script>
 {% endblock %}

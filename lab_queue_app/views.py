@@ -632,9 +632,10 @@ def update_positions(work):
         participant.save()
 
 def check_telegram_bind(request):
-    if request.user.is_authenticated and request.user.profile.telegram_id:
-        return JsonResponse({'is_bound': True})
-    
+    """Проверка привязки Telegram аккаунта"""
+    is_bound = request.user.is_authenticated and request.user.profile.telegram_id is not None
+    return JsonResponse({'is_bound': is_bound})
+
 @login_required
 def check_work_status(request):
     if request.method == 'POST' and request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -978,6 +979,10 @@ def telegram_link(request):
 @login_required
 def telegram_link_request(request):
     """Запрос кода для привязки Telegram."""
+    if request.user.profile.telegram_id:
+        messages.info(request, "Telegram уже привязан.")
+        return redirect('user_settings')
+
     now = int(timezone.now().timestamp())
     session_key = 'telegram_link_data'
     data = request.session.get(session_key, {
@@ -992,6 +997,31 @@ def telegram_link_request(request):
     max_attempts = 5
     error, message = None, None
     captcha_form = ResendCaptchaForm(request.POST or None) if show_captcha else None
+
+    # Генерируем и отправляем код при первом посещении страницы
+    if not data.get('code'):
+        code = str(random.randint(100000, 999999))
+        data.update({
+            'code': code,
+            'last_code_sent': now,
+            'attempts': attempts + [now],
+        })
+        request.session[session_key] = data
+        request.session.modified = True
+        
+        try:
+            send_mail(
+                'Код для привязки Telegram',
+                f'Ваш код подтверждения для привязки Telegram: {code}',
+                None,
+                [request.user.email],
+                fail_silently=False,
+            )
+            message = 'Код отправлен на ваш email.'
+            print(f"Initial code sent to {request.user.email}: {code}")  # Для отладки
+        except Exception as e:
+            error = f'Ошибка при отправке письма: {e}'
+            print(f"Error sending initial code: {e}")  # Для отладки
 
     if request.method == 'POST':
         if 'resend' in request.POST:
@@ -1028,16 +1058,38 @@ def telegram_link_request(request):
                     print(f"Email sending error: {e}")  # Отладка
 
                 seconds_left = settings.VERIFICATION_CODE_RESEND_TIMEOUT
-
-        return render(request, 'lab_queue_app/telegram_link_code.html', {
-            'email': request.user.email,
-            'seconds_left': seconds_left,
-            'resend_timeout': settings.VERIFICATION_CODE_RESEND_TIMEOUT,
-            'show_captcha': show_captcha,
-            'captcha_form': captcha_form,
-            'error': error,
-            'message': message,
-        })
+        elif 'code' in request.POST:
+            input_code = request.POST.get('code')
+            stored_code = data.get('code')
+            
+            if not stored_code:
+                messages.error(request, 'Код не был сгенерирован. Начните процесс заново.')
+                return redirect('telegram_link_request')
+                
+            if input_code != stored_code:
+                messages.error(request, 'Неверный код.')
+                return render(request, 'lab_queue_app/telegram_link_code.html', {
+                    'email': request.user.email,
+                    'seconds_left': 0,
+                    'resend_timeout': settings.VERIFICATION_CODE_RESEND_TIMEOUT,
+                    'show_captcha': False,
+                })
+            
+            # Если код верный, создаем токен и генерируем deep link
+            token = TelegramBindToken.objects.create(
+                user=request.user,
+                token=str(uuid.uuid4()),
+            )
+            bot_username = 'plaki_plaki_prod_bot'
+            deep_link = f"https://t.me/{bot_username}?start={token.token}"
+            request.session.pop(session_key, None)  # Очищаем сессию
+            TelegramChangeAttempt.objects.get_or_create(user=request.user)[0].reset()
+            
+            # Рендерим страницу с deep link
+            return render(request, 'lab_queue_app/register_telegram_link.html', {
+                'deep_link': deep_link,
+                'message': 'Нажмите кнопку ниже, чтобы привязать Telegram.'
+            })
 
     return render(request, 'lab_queue_app/telegram_link_code.html', {
         'email': request.user.email,
@@ -1045,6 +1097,8 @@ def telegram_link_request(request):
         'resend_timeout': settings.VERIFICATION_CODE_RESEND_TIMEOUT,
         'show_captcha': show_captcha,
         'captcha_form': captcha_form,
+        'error': error,
+        'message': message,
     })
 
 @login_required
