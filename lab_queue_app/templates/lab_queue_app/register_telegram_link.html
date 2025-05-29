@@ -126,7 +126,7 @@
                             document.getElementById('status-message').style.display = 'block';
                             setTimeout(() => {
                                 window.location.href = "{% url 'user_settings' %}";
-                            }, 2000);
+                            }, 5000);
                         } else {
                             retryCount++;
                             if (retryCount >= maxRetries) {
