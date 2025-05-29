@@ -24,6 +24,8 @@ from django.conf import settings
 from captcha.fields import ReCaptchaField
 from captcha.widgets import ReCaptchaV2Checkbox
 import uuid
+from django.core.exceptions import RequestAborted
+import socket
 
 logger = logging.getLogger(__name__)
 
@@ -1319,40 +1321,86 @@ def check_email(request):
     is_taken = User.objects.filter(email=email).exists()
     return JsonResponse({'is_taken': is_taken})
 
+@login_required
 def get_queue_updates(request):
     """Long polling endpoint для получения обновлений очереди"""
-    last_update = request.GET.get('last_update', '0')
-    last_update = float(last_update)
+    last_update = float(request.GET.get('last_update', '0'))
+    logger.debug(f"Queue updates requested by {request.user.username}, last_update={last_update}")
     
     # Максимальное время ожидания - 30 секунд
     timeout = 30
-    start_time = time.time()
+    start_time = timezone.now()
     
-    while time.time() - start_time < timeout:
-        # Получаем все очереди, в которых участвует пользователь
-        user_queues = WaitingListParticipant.objects.filter(
-            user=request.user,
-            status='active'
-        ).select_related('practical_work__subject')
+    try:
+        while (timezone.now() - start_time).total_seconds() < timeout:
+            # Получаем все очереди, в которых участвует пользователь
+            user_queues = WaitingListParticipant.objects.filter(
+                user=request.user,
+                status='active'
+            ).select_related('practical_work__subject')
+            
+            # Получаем все активные очереди для предметов, в которых участвует пользователь
+            subject_ids = user_queues.values_list('practical_work__subject_id', flat=True)
+            all_queues = WaitingListParticipant.objects.filter(
+                practical_work__subject_id__in=subject_ids,
+                status='active'
+            ).select_related('practical_work__subject', 'user')
+            
+            # Проверяем, есть ли изменения после last_update
+            latest_changes = all_queues.filter(
+                modified_at__gt=timezone.make_aware(datetime.fromtimestamp(last_update))
+            ).exists()
+            
+            if latest_changes:
+                logger.debug(f"Changes detected for user {request.user.username}")
+                # Если есть изменения, возвращаем обновленные данные
+                queues_data = []
+                for subject_id in subject_ids:
+                    subject_participants = all_queues.filter(practical_work__subject_id=subject_id)
+                    if subject_participants.exists():
+                        subject = subject_participants.first().practical_work.subject
+                        subject_name = subject.name
+                        
+                        # Получаем позицию пользователя
+                        user_position = next(
+                            (p.list_position for p in subject_participants if p.user_id == request.user.id),
+                            None
+                        )
+                        
+                        queues_data.append({
+                            'subject_id': subject_id,
+                            'subject_name': subject_name,
+                            'position': user_position,
+                            'total_participants': subject_participants.count(),
+                            'participants': [
+                                {
+                                    'username': p.user.get_full_name() or p.user.username,
+                                    'position': p.list_position,
+                                    'work_number': p.practical_work.sequence_number,
+                                    'work_name': p.practical_work.name,
+                                    'is_hurry': p.is_hurry
+                                }
+                                for p in subject_participants.order_by('-is_hurry', 'list_position')
+                            ]
+                        })
+                
+                logger.debug(f"Sending updates to user {request.user.username}: {queues_data}")
+                return JsonResponse({
+                    'timestamp': timezone.now().timestamp(),
+                    'queues': queues_data
+                })
+            
+            # Если изменений нет, ждем 1 секунду перед следующей проверкой
+            time.sleep(1)
         
-        # Получаем все активные очереди для предметов, в которых участвует пользователь
-        subject_ids = user_queues.values_list('practical_work__subject_id', flat=True)
-        all_queues = WaitingListParticipant.objects.filter(
-            practical_work__subject_id__in=subject_ids,
-            status='active'
-        ).select_related('practical_work__subject', 'user')
-        
-        # Проверяем, есть ли изменения после last_update
-        latest_changes = all_queues.filter(
-            modified_at__gt=datetime.fromtimestamp(last_update)
-        ).exists()
-        
-        if latest_changes:
-            # Если есть изменения, возвращаем обновленные данные
-            queues_data = []
-            for subject_id in subject_ids:
-                subject_participants = all_queues.filter(practical_work__subject_id=subject_id)
-                subject_name = subject_participants.first().practical_work.subject.name if subject_participants.exists() else ""
+        # Если за timeout секунд изменений не было, возвращаем текущее состояние
+        logger.debug(f"No changes detected for user {request.user.username}, returning current state")
+        queues_data = []
+        for subject_id in subject_ids:
+            subject_participants = all_queues.filter(practical_work__subject_id=subject_id)
+            if subject_participants.exists():
+                subject = subject_participants.first().practical_work.subject
+                subject_name = subject.name
                 
                 # Получаем позицию пользователя
                 user_position = next(
@@ -1376,20 +1424,20 @@ def get_queue_updates(request):
                         for p in subject_participants.order_by('-is_hurry', 'list_position')
                     ]
                 })
-            
-            return JsonResponse({
-                'timestamp': time.time(),
-                'queues': queues_data
-            })
         
-        # Если изменений нет, ждем 1 секунду перед следующей проверкой
-        time.sleep(1)
-    
-    # Если за timeout секунд изменений не было, возвращаем пустой ответ
-    return JsonResponse({
-        'timestamp': time.time(),
-        'queues': []
-    })
+        return JsonResponse({
+            'timestamp': timezone.now().timestamp(),
+            'queues': queues_data
+        })
+        
+    except (RequestAborted, socket.error, ConnectionResetError) as e:
+        # Клиент разорвал соединение, логируем это с низким уровнем важности
+        logger.debug(f"Client disconnected: {str(e)}")
+        return HttpResponse(status=204)  # No Content
+    except Exception as e:
+        # Другие ошибки логируем как предупреждения
+        logger.warning(f"Error in long polling: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
 
 def check_telegram_status(request):
     """Проверка статуса привязки Telegram"""
