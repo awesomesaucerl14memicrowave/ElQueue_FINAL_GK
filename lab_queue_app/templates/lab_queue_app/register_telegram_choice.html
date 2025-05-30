@@ -6,11 +6,11 @@
             <div class="col-md-6">
                 <div class="custom-card">
                     <div class="card-header-custom">
-                        <i class="fas fa-telegram me-2"></i>Привязка Telegram
+                        <i class="fab fa-telegram me-2"></i>Привязка Telegram
                     </div>
                     <div class="card-body">
                         <div class="text-center mb-4">
-                            <p class="lead mb-4">Привязка Telegram позволит получать уведомления об изменениях в очереди и управлять своей позицией через бота.</p>
+                            <p class="lead mb-4">Привязка Telegram позволит получать уведомления об изменениях в очереди и управлять своей позицией через бота (в будущем).</p>
                         </div>
 
                         <div id="telegram-binding-section">
@@ -28,14 +28,14 @@
                         </div>
 
                         <div id="binding-status" class="mt-4 text-center" style="display: none;">
-                            <div class="spinner-border text-primary mb-3" role="status">
+                            <div class="spinner-border text-accent mb-3" role="status">
                                 <span class="visually-hidden">Проверка привязки...</span>
                             </div>
                             <p class="text-muted">Ожидание привязки Telegram...</p>
                         </div>
 
                         <div id="binding-success" class="mt-4 text-center" style="display: none;">
-                            <div class="alert alert-success rounded-3 shadow-sm">
+                            <div class="alert custom-alert-success rounded-3 shadow-sm">
                                 <i class="fas fa-check-circle me-2"></i>Telegram успешно привязан!
                             </div>
                             <form method="post" class="d-grid mt-3">
@@ -99,23 +99,43 @@
 
     <style>
         .lead {
-            color: var(--header-color);
+            color: var(--text-color);
             font-size: 1.1rem;
-        }
-
-        .alert-info {
-            background-color: var(--purple-light);
-            color: var(--header-color);
-            border: 2px solid var(--accent-secondary);
+            line-height: 1.6;
         }
 
         .btn-lg {
             padding: 1rem 1.5rem;
             font-size: 1.1rem;
+            transition: all 0.3s ease;
         }
 
         .fab.fa-telegram {
             font-size: 1.2rem;
+        }
+
+        .spinner-border {
+            color: var(--accent);
+        }
+
+        .custom-alert-success {
+            background-color: var(--success-light);
+            border: 2px solid var(--success);
+            color: var(--success-dark);
+        }
+
+        .text-muted {
+            color: var(--text-muted) !important;
+        }
+
+        .btn-custom, .btn-custom-secondary {
+            border: none;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn-custom:hover, .btn-custom-secondary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
         }
     </style>
 {% endblock %}
