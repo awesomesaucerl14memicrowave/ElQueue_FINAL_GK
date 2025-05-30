@@ -1,17 +1,24 @@
 {% if queue_cards %}
-    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+    <div class="row">
         {% for card in queue_cards %}
-            {% if not card.no_available_works %}
-                <div class="col">
-                    {% with work=card.subject.practicalwork_set.first %}
-                        {% include 'lab_queue_app/queue_card.html' with work=work available_works_str=card.available_works_str %}
-                    {% endwith %}
-                </div>
-            {% endif %}
+            <div class="col-md-6 col-lg-4 mb-3">
+                {% if card.no_available_works %}
+                    <div class="queue-card">
+                        <p class="text-muted mb-0">Нет доступных лабораторных работ для записи в очередь.</p>
+                    </div>
+                {% else %}
+                    <div class="queue-card" data-subject-id="{{ card.subject.id }}">
+                        <h4>{{ card.subject.name }}</h4>
+                        <button class="btn btn-custom join-queue-btn w-100"
+                                data-works="{{ card.available_works_str|escapejs }}"
+                                onclick="openJoinModal({{ card.first_work_id }}, '{{ card.first_work_seq }} {{ card.first_work_name }}', this.getAttribute('data-works'), false)">
+                            <i class="fas fa-sign-in-alt me-2"></i>Встать в очередь
+                        </button>
+                    </div>
+                {% endif %}
+            </div>
         {% endfor %}
     </div>
 {% else %}
-    <div class="alert alert-info">
-        <i class="fas fa-info-circle"></i> Нет доступных очередей
-    </div>
+    <p class="text-muted mb-0">Нет доступных лабораторных работ для записи в очередь.</p>
 {% endif %}

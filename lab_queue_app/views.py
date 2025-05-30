@@ -24,6 +24,8 @@ from django.conf import settings
 from captcha.fields import ReCaptchaField
 from captcha.widgets import ReCaptchaV2Checkbox
 import uuid
+from django.core.exceptions import RequestAborted
+import socket
 
 logger = logging.getLogger(__name__)
 
@@ -598,9 +600,9 @@ def leave_queue(request, work_id):
             if participant:
                 if has_passed:
                     participant.status = 'served'
+                    participant.save()
                 else:
-                    participant.status = 'left'
-                participant.save()
+                    participant.delete()
                 
                 WaitingListParticipant.recalculate_positions(participant.practical_work.subject_id)
                 
@@ -632,9 +634,10 @@ def update_positions(work):
         participant.save()
 
 def check_telegram_bind(request):
-    if request.user.is_authenticated and request.user.profile.telegram_id:
-        return JsonResponse({'is_bound': True})
-    
+    """Проверка привязки Telegram аккаунта"""
+    is_bound = request.user.is_authenticated and request.user.profile.telegram_id is not None
+    return JsonResponse({'is_bound': is_bound})
+
 @login_required
 def check_work_status(request):
     if request.method == 'POST' and request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -888,6 +891,13 @@ def telegram_link(request):
     if request.user.profile.telegram_id:
         return redirect('user_settings')
 
+    session_key = 'telegram_link_data'
+    data = request.session.get(session_key, {
+        'code': '',
+        'last_code_sent': 0,
+        'attempts': [],
+    })
+
     # Получаем или создаем объект для отслеживания попыток
     attempt, created = TelegramVerificationAttempt.objects.get_or_create(user=request.user)
 
@@ -902,10 +912,15 @@ def telegram_link(request):
         })
 
     # Генерируем и отправляем код при первом посещении страницы
-    if 'telegram_code' not in request.session:
+    if not data.get('code'):
         code = str(random.randint(100000, 999999))
-        request.session['telegram_code'] = code
-        request.session['telegram_code_timestamp'] = int(time.time())
+        data.update({
+            'code': code,
+            'last_code_sent': int(time.time()),
+            'attempts': data.get('attempts', []) + [int(time.time())]
+        })
+        request.session[session_key] = data
+        request.session.modified = True
         
         try:
             send_mail(
@@ -921,7 +936,7 @@ def telegram_link(request):
 
     if request.method == 'POST':
         code = request.POST.get('code')
-        stored_code = request.session.get('telegram_code')
+        stored_code = data.get('code')
         
         if not stored_code:
             messages.error(request, 'Код подтверждения не был сгенерирован')
@@ -953,12 +968,9 @@ def telegram_link(request):
         )
         
         # Очищаем данные верификации из сессии
-        request.session.pop('telegram_code', None)
-        request.session.pop('telegram_code_timestamp', None)
+        request.session.pop(session_key, None)
         
-        return render(request, 'lab_queue_app/telegram_link_success.html', {
-            'token': token.token
-        })
+        return redirect('register_telegram_link')
         
     return render(request, 'lab_queue_app/telegram_link.html', {
         'email': request.user.email,
@@ -969,6 +981,10 @@ def telegram_link(request):
 @login_required
 def telegram_link_request(request):
     """Запрос кода для привязки Telegram."""
+    if request.user.profile.telegram_id:
+        messages.info(request, "Telegram уже привязан.")
+        return redirect('user_settings')
+
     now = int(timezone.now().timestamp())
     session_key = 'telegram_link_data'
     data = request.session.get(session_key, {
@@ -983,6 +999,31 @@ def telegram_link_request(request):
     max_attempts = 5
     error, message = None, None
     captcha_form = ResendCaptchaForm(request.POST or None) if show_captcha else None
+
+    # Генерируем и отправляем код при первом посещении страницы
+    if not data.get('code'):
+        code = str(random.randint(100000, 999999))
+        data.update({
+            'code': code,
+            'last_code_sent': now,
+            'attempts': attempts + [now],
+        })
+        request.session[session_key] = data
+        request.session.modified = True
+        
+        try:
+            send_mail(
+                'Код для привязки Telegram',
+                f'Ваш код подтверждения для привязки Telegram: {code}',
+                None,
+                [request.user.email],
+                fail_silently=False,
+            )
+            message = 'Код отправлен на ваш email.'
+            print(f"Initial code sent to {request.user.email}: {code}")  # Для отладки
+        except Exception as e:
+            error = f'Ошибка при отправке письма: {e}'
+            print(f"Error sending initial code: {e}")  # Для отладки
 
     if request.method == 'POST':
         if 'resend' in request.POST:
@@ -1019,54 +1060,34 @@ def telegram_link_request(request):
                     print(f"Email sending error: {e}")  # Отладка
 
                 seconds_left = settings.VERIFICATION_CODE_RESEND_TIMEOUT
-
-        return render(request, 'lab_queue_app/telegram_link_code.html', {
-            'email': request.user.email,
-            'seconds_left': seconds_left,
-            'resend_timeout': settings.VERIFICATION_CODE_RESEND_TIMEOUT,
-            'show_captcha': show_captcha,
-            'captcha_form': captcha_form,
-            'error': error,
-            'message': message,
-        })
-
-    return render(request, 'lab_queue_app/telegram_link_code.html', {
-        'email': request.user.email,
-        'seconds_left': seconds_left,
-        'resend_timeout': settings.VERIFICATION_CODE_RESEND_TIMEOUT,
-        'show_captcha': show_captcha,
-        'captcha_form': captcha_form,
-    })
-
-@login_required
-def telegram_link_verify(request):
-    """Проверка кода и генерация deep link для привязки Telegram."""
-    session_key = 'telegram_link_data'
-    data = request.session.get(session_key, {})
-    code = data.get('code', '')
-    error = None
-
-    print(f"Session data: {data}")  # Отладка: выводим данные сессии
-    print(f"Stored code: {code}")  # Отладка: выводим сохранённый код
-
-    if not code:
-        messages.error(request, 'Код не был сгенерирован. Начните процесс заново.')
-        print("No code in session, redirecting to telegram_link_request")  # Отладка
-        return redirect('telegram_link_request')
-
-    if request.method == 'POST':
-        input_code = request.POST.get('code')
-        print(f"Input code: {input_code}")  # Отладка: выводим введённый код
-        if input_code != code:
-            error = 'Неверный код.'
-            print(f"Code mismatch: {input_code} != {code}")  # Отладка
-        else:
-            token = TelegramBindToken.objects.create(user=request.user)
+        elif 'code' in request.POST:
+            input_code = request.POST.get('code')
+            stored_code = data.get('code')
+            
+            if not stored_code:
+                messages.error(request, 'Код не был сгенерирован. Начните процесс заново.')
+                return redirect('telegram_link_request')
+                
+            if input_code != stored_code:
+                messages.error(request, 'Неверный код.')
+                return render(request, 'lab_queue_app/telegram_link_code.html', {
+                    'email': request.user.email,
+                    'seconds_left': 0,
+                    'resend_timeout': settings.VERIFICATION_CODE_RESEND_TIMEOUT,
+                    'show_captcha': False,
+                })
+            
+            # Если код верный, создаем токен и генерируем deep link
+            token = TelegramBindToken.objects.create(
+                user=request.user,
+                token=str(uuid.uuid4()),
+            )
             bot_username = 'plaki_plaki_prod_bot'
             deep_link = f"https://t.me/{bot_username}?start={token.token}"
             request.session.pop(session_key, None)  # Очищаем сессию
             TelegramChangeAttempt.objects.get_or_create(user=request.user)[0].reset()
-            print(f"Generated deep link: {deep_link}")  # Отладка
+            
+            # Рендерим страницу с deep link
             return render(request, 'lab_queue_app/register_telegram_link.html', {
                 'deep_link': deep_link,
                 'message': 'Нажмите кнопку ниже, чтобы привязать Telegram.'
@@ -1074,11 +1095,71 @@ def telegram_link_verify(request):
 
     return render(request, 'lab_queue_app/telegram_link_code.html', {
         'email': request.user.email,
-        'seconds_left': 0,
+        'seconds_left': seconds_left,
         'resend_timeout': settings.VERIFICATION_CODE_RESEND_TIMEOUT,
-        'show_captcha': False,
+        'show_captcha': show_captcha,
+        'captcha_form': captcha_form,
         'error': error,
+        'message': message,
     })
+
+@login_required
+def telegram_link_verify(request):
+    """Проверка кода и генерация deep link для привязки Telegram."""
+    try:
+        session_key = 'telegram_link_data'
+        data = request.session.get(session_key, {})
+        code = data.get('code', '')
+        
+        print(f"Session data: {data}")  # Для отладки
+        
+        if not code:
+            messages.error(request, 'Код не был сгенерирован. Начните процесс заново.')
+            return redirect('telegram_link_request')
+
+        if request.method == 'POST':
+            input_code = request.POST.get('code')
+            print(f"Input code: {input_code}, Stored code: {code}")  # Для отладки
+            
+            if input_code != code:
+                messages.error(request, 'Неверный код.')
+                return render(request, 'lab_queue_app/telegram_link_code.html', {
+                    'email': request.user.email,
+                    'error': 'Неверный код.',
+                    'seconds_left': 0,
+                    'resend_timeout': settings.VERIFICATION_CODE_RESEND_TIMEOUT,
+                    'show_captcha': False,
+                })
+            
+            # Если код верный, создаем токен и генерируем deep link
+            token = TelegramBindToken.objects.create(
+                user=request.user,
+                token=str(uuid.uuid4()),
+                #expires_at=timezone.now() + timedelta(hours=1)
+            )
+            bot_username = 'plaki_plaki_prod_bot'
+            deep_link = f"https://t.me/{bot_username}?start={token.token}"
+            request.session.pop(session_key, None)  # Очищаем сессию
+            TelegramChangeAttempt.objects.get_or_create(user=request.user)[0].reset()
+            print(f"Generated deep link: {deep_link}")  # Для отладки
+            
+            # Рендерим страницу с deep link
+            return render(request, 'lab_queue_app/register_telegram_link.html', {
+                'deep_link': deep_link,
+                'message': 'Нажмите кнопку ниже, чтобы привязать Telegram.'
+            })
+
+        return render(request, 'lab_queue_app/telegram_link_code.html', {
+            'email': request.user.email,
+            'seconds_left': 0,
+            'resend_timeout': settings.VERIFICATION_CODE_RESEND_TIMEOUT,
+            'show_captcha': False,
+        })
+            
+    except Exception as e:
+        print(f"Error in telegram_link_verify: {e}")  # Для отладки
+        messages.error(request, 'Произошла ошибка при проверке кода.')
+        return redirect('telegram_link_request')
 
 @login_required
 def telegram_unlink_request(request):
@@ -1101,6 +1182,31 @@ def telegram_unlink_request(request):
     max_attempts = 5
     error, message = None, None
     captcha_form = ResendCaptchaForm(request.POST or None) if show_captcha else None
+
+    # Генерируем и отправляем код при первом посещении страницы
+    if not data.get('code'):
+        code = str(random.randint(100000, 999999))
+        data.update({
+            'code': code,
+            'last_code_sent': now,
+            'attempts': attempts + [now],
+        })
+        request.session[session_key] = data
+        request.session.modified = True
+        
+        try:
+            send_mail(
+                'Код для отвязки Telegram',
+                f'Ваш код подтверждения для отвязки Telegram: {code}',
+                None,
+                [request.user.email],
+                fail_silently=False,
+            )
+            message = 'Код отправлен на ваш email.'
+            print(f"Initial code sent to {request.user.email}: {code}")  # Для отладки
+        except Exception as e:
+            error = f'Ошибка при отправке письма: {e}'
+            print(f"Error sending initial code: {e}")  # Для отладки
 
     if request.method == 'POST':
         if 'resend' in request.POST:
@@ -1134,16 +1240,32 @@ def telegram_unlink_request(request):
                     error = f'Ошибка при отправке письма: {e}'
 
                 seconds_left = settings.VERIFICATION_CODE_RESEND_TIMEOUT
-
-        return render(request, 'lab_queue_app/telegram_unlink_code.html', {
-            'email': request.user.email,
-            'seconds_left': seconds_left,
-            'resend_timeout': settings.VERIFICATION_CODE_RESEND_TIMEOUT,
-            'show_captcha': show_captcha,
-            'captcha_form': captcha_form,
-            'error': error,
-            'message': message,
-        })
+        elif 'code' in request.POST:
+            input_code = request.POST.get('code')
+            stored_code = data.get('code')
+            
+            if not stored_code:
+                messages.error(request, 'Код не был сгенерирован. Начните процесс заново.')
+                return redirect('telegram_unlink_request')
+                
+            if input_code != stored_code:
+                messages.error(request, 'Неверный код.')
+                return render(request, 'lab_queue_app/telegram_unlink_code.html', {
+                    'email': request.user.email,
+                    'seconds_left': 0,
+                    'resend_timeout': settings.VERIFICATION_CODE_RESEND_TIMEOUT,
+                    'show_captcha': False,
+                })
+            
+            # Если код верный, отвязываем Telegram
+            profile = request.user.profile
+            profile.telegram_id = None
+            profile.telegram_notifications = False
+            profile.save()
+            request.session.pop(session_key, None)
+            TelegramChangeAttempt.objects.get_or_create(user=request.user)[0].reset()
+            messages.success(request, "Telegram аккаунт успешно отвязан.")
+            return redirect('user_settings')
 
     return render(request, 'lab_queue_app/telegram_unlink_code.html', {
         'email': request.user.email,
@@ -1151,6 +1273,8 @@ def telegram_unlink_request(request):
         'resend_timeout': settings.VERIFICATION_CODE_RESEND_TIMEOUT,
         'show_captcha': show_captcha,
         'captcha_form': captcha_form,
+        'error': error,
+        'message': message,
     })
 
 @login_required
@@ -1197,40 +1321,86 @@ def check_email(request):
     is_taken = User.objects.filter(email=email).exists()
     return JsonResponse({'is_taken': is_taken})
 
+@login_required
 def get_queue_updates(request):
     """Long polling endpoint для получения обновлений очереди"""
-    last_update = request.GET.get('last_update', '0')
-    last_update = float(last_update)
+    last_update = float(request.GET.get('last_update', '0'))
+    logger.debug(f"Queue updates requested by {request.user.username}, last_update={last_update}")
     
     # Максимальное время ожидания - 30 секунд
     timeout = 30
-    start_time = time.time()
+    start_time = timezone.now()
     
-    while time.time() - start_time < timeout:
-        # Получаем все очереди, в которых участвует пользователь
-        user_queues = WaitingListParticipant.objects.filter(
-            user=request.user,
-            status='active'
-        ).select_related('practical_work__subject')
+    try:
+        while (timezone.now() - start_time).total_seconds() < timeout:
+            # Получаем все очереди, в которых участвует пользователь
+            user_queues = WaitingListParticipant.objects.filter(
+                user=request.user,
+                status='active'
+            ).select_related('practical_work__subject')
+            
+            # Получаем все активные очереди для предметов, в которых участвует пользователь
+            subject_ids = user_queues.values_list('practical_work__subject_id', flat=True)
+            all_queues = WaitingListParticipant.objects.filter(
+                practical_work__subject_id__in=subject_ids,
+                status='active'
+            ).select_related('practical_work__subject', 'user')
+            
+            # Проверяем, есть ли изменения после last_update
+            latest_changes = all_queues.filter(
+                modified_at__gt=timezone.make_aware(datetime.fromtimestamp(last_update))
+            ).exists()
+            
+            if latest_changes:
+                logger.debug(f"Changes detected for user {request.user.username}")
+                # Если есть изменения, возвращаем обновленные данные
+                queues_data = []
+                for subject_id in subject_ids:
+                    subject_participants = all_queues.filter(practical_work__subject_id=subject_id)
+                    if subject_participants.exists():
+                        subject = subject_participants.first().practical_work.subject
+                        subject_name = subject.name
+                        
+                        # Получаем позицию пользователя
+                        user_position = next(
+                            (p.list_position for p in subject_participants if p.user_id == request.user.id),
+                            None
+                        )
+                        
+                        queues_data.append({
+                            'subject_id': subject_id,
+                            'subject_name': subject_name,
+                            'position': user_position,
+                            'total_participants': subject_participants.count(),
+                            'participants': [
+                                {
+                                    'username': p.user.get_full_name() or p.user.username,
+                                    'position': p.list_position,
+                                    'work_number': p.practical_work.sequence_number,
+                                    'work_name': p.practical_work.name,
+                                    'is_hurry': p.is_hurry
+                                }
+                                for p in subject_participants.order_by('-is_hurry', 'list_position')
+                            ]
+                        })
+                
+                logger.debug(f"Sending updates to user {request.user.username}: {queues_data}")
+                return JsonResponse({
+                    'timestamp': timezone.now().timestamp(),
+                    'queues': queues_data
+                })
+            
+            # Если изменений нет, ждем 1 секунду перед следующей проверкой
+            time.sleep(1)
         
-        # Получаем все активные очереди для предметов, в которых участвует пользователь
-        subject_ids = user_queues.values_list('practical_work__subject_id', flat=True)
-        all_queues = WaitingListParticipant.objects.filter(
-            practical_work__subject_id__in=subject_ids,
-            status='active'
-        ).select_related('practical_work__subject', 'user')
-        
-        # Проверяем, есть ли изменения после last_update
-        latest_changes = all_queues.filter(
-            modified_at__gt=datetime.fromtimestamp(last_update)
-        ).exists()
-        
-        if latest_changes:
-            # Если есть изменения, возвращаем обновленные данные
-            queues_data = []
-            for subject_id in subject_ids:
-                subject_participants = all_queues.filter(practical_work__subject_id=subject_id)
-                subject_name = subject_participants.first().practical_work.subject.name if subject_participants.exists() else ""
+        # Если за timeout секунд изменений не было, возвращаем текущее состояние
+        logger.debug(f"No changes detected for user {request.user.username}, returning current state")
+        queues_data = []
+        for subject_id in subject_ids:
+            subject_participants = all_queues.filter(practical_work__subject_id=subject_id)
+            if subject_participants.exists():
+                subject = subject_participants.first().practical_work.subject
+                subject_name = subject.name
                 
                 # Получаем позицию пользователя
                 user_position = next(
@@ -1254,20 +1424,20 @@ def get_queue_updates(request):
                         for p in subject_participants.order_by('-is_hurry', 'list_position')
                     ]
                 })
-            
-            return JsonResponse({
-                'timestamp': time.time(),
-                'queues': queues_data
-            })
         
-        # Если изменений нет, ждем 1 секунду перед следующей проверкой
-        time.sleep(1)
-    
-    # Если за timeout секунд изменений не было, возвращаем пустой ответ
-    return JsonResponse({
-        'timestamp': time.time(),
-        'queues': []
-    })
+        return JsonResponse({
+            'timestamp': timezone.now().timestamp(),
+            'queues': queues_data
+        })
+        
+    except (RequestAborted, socket.error, ConnectionResetError) as e:
+        # Клиент разорвал соединение, логируем это с низким уровнем важности
+        logger.debug(f"Client disconnected: {str(e)}")
+        return HttpResponse(status=204)  # No Content
+    except Exception as e:
+        # Другие ошибки логируем как предупреждения
+        logger.warning(f"Error in long polling: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
 
 def check_telegram_status(request):
     """Проверка статуса привязки Telegram"""

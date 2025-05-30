@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-tkkt4v+^6^txpqrb1@t+kbty!=^3mc1ox9n2_0&drz6fy%de9b
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
 
 
 # Application definition
@@ -37,7 +37,6 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'channels',
     'lab_queue_app',
     'captcha',
 ]
@@ -50,7 +49,6 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    
 ]
 
 ROOT_URLCONF = 'lab_queue.urls'
@@ -156,13 +154,5 @@ VERIFICATION_CODE_RESEND_TIMEOUT = 10  # секунд
 
 CUSTOM_ERROR_PAGES = True # True: заменять стандартные страницы ошибок от django на кастомные
 
-# Настройки для Channels
-ASGI_APPLICATION = 'lab_queue.asgi.application'
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels.layers.InMemoryChannelLayer'
-    }
-}
-
 # Настройки для Telegram бота
-TELEGRAM_BOT_TOKEN = 'YOUR_BOT_TOKEN'  # Замените на ваш токен
+TELEGRAM_BOT_TOKEN = '7951386321:AAHxpTDG6yhTRl9ap2uazpy7vX_-9mv1HPw'  # Замените на ваш токен

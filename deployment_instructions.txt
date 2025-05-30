@@ -1,0 +1,76 @@
+Инструкция по развертыванию проекта на PythonAnywhere
+==============================================
+
+1. ПОЛУЧЕНИЕ ССЫЛКИ ДЛЯ GIT CLONE
+--------------------------------
+- Перейдите в ваш GitHub репозиторий
+- Нажмите на зеленую кнопку "Code"
+- Скопируйте HTTPS ссылку вида:
+  https://github.com/YOUR_USERNAME/ElQueue_FINAL_GK.git
+
+2. НАСТРОЙКА НА PYTHONANYWHERE
+-----------------------------
+1) Создайте аккаунт на PythonAnywhere (если еще нет)
+2) Перейдите в раздел "Consoles" и откройте Bash консоль
+3) Клонируйте репозиторий:
+   git clone https://github.com/YOUR_USERNAME/ElQueue_FINAL_GK.git
+4) Создайте и активируйте виртуальное окружение:
+   cd ElQueue_FINAL_GK
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+
+3. НАСТРОЙКА ВЕБ-ПРИЛОЖЕНИЯ
+---------------------------
+1) Перейдите в раздел "Web" на PythonAnywhere
+2) Нажмите "Add a new web app"
+3) Выберите "Manual configuration"
+4) Выберите Python версию (используйте ту же версию, что и в локальной разработке)
+5) В разделе "Code:" настройте:
+   - Source code: /home/YOUR_PYTHONANYWHERE_USERNAME/ElQueue_FINAL_GK
+   - Working directory: /home/YOUR_PYTHONANYWHERE_USERNAME/ElQueue_FINAL_GK
+6) В разделе "Virtualenv:" укажите путь:
+   /home/YOUR_PYTHONANYWHERE_USERNAME/ElQueue_FINAL_GK/venv
+7) В разделе "WSGI configuration file" замените содержимое на код из wsgi.py:
+
+import os
+import sys
+
+# Add your project directory to the sys.path
+path = '/home/YOUR_PYTHONANYWHERE_USERNAME/ElQueue_FINAL_GK'
+if path not in sys.path:
+    sys.path.append(path)
+
+# Set environment variable to tell Django where your settings.py is
+os.environ['DJANGO_SETTINGS_MODULE'] = 'lab_queue.settings'
+
+# Set the application
+from django.core.wsgi import get_wsgi_application
+application = get_wsgi_application()
+
+4. НАСТРОЙКА СТАТИЧЕСКИХ ФАЙЛОВ
+------------------------------
+В разделе "Static files" добавьте:
+- URL: /static/
+- Directory: /home/YOUR_PYTHONANYWHERE_USERNAME/ElQueue_FINAL_GK/staticfiles
+
+Для медиа файлов:
+- URL: /media/
+- Directory: /home/YOUR_PYTHONANYWHERE_USERNAME/ElQueue_FINAL_GK/media
+
+5. ФИНАЛЬНЫЕ ШАГИ
+----------------
+1) В консоли выполните:
+   python manage.py collectstatic
+   python manage.py migrate
+2) Перезагрузите веб-приложение через кнопку "Reload"
+
+ВАЖНЫЕ ЗАМЕЧАНИЯ
+---------------
+1. Замените YOUR_PYTHONANYWHERE_USERNAME на ваше реальное имя пользователя
+2. Проверьте все необходимые переменные окружения в разделе "Environment variables"
+3. Если есть файл .env, добавьте его содержимое в переменные окружения
+4. Для продакшена рекомендуется использовать PostgreSQL или MySQL вместо SQLite
+
+После настройки приложение будет доступно по адресу:
+https://YOUR_PYTHONANYWHERE_USERNAME.pythonanywhere.com 

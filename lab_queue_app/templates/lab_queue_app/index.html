@@ -203,7 +203,19 @@
                 if (idx === 0) option.selected = true;
                 select.appendChild(option);
             });
-            document.getElementById('joinForm').action = "{% url 'join_queue' 0 %}".replace('0', works[0].id);
+
+            // Устанавливаем начальный action для формы
+            updateJoinFormAction(works[0].id);
+
+            // Добавляем обработчик изменения выбранной работы
+            select.addEventListener('change', function() {
+                const selectedWorkId = this.value;
+                updateJoinFormAction(selectedWorkId);
+            });
+        }
+
+        function updateJoinFormAction(workId) {
+            document.getElementById('joinForm').action = "{% url 'join_queue' 0 %}".replace('0', workId);
         }
     
         function closeJoinModal() {

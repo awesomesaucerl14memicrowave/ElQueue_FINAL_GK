@@ -197,12 +197,8 @@
                     <h3 class="mb-3">Подтверждение</h3>
                     <form id="joinForm" method="post">
                         {% csrf_token %}
-                        <div class="mb-3">
-                            <label class="form-label">Выберите лабораторную работу:</label>
-                            <select name="work_id" id="joinWorkId" class="form-select">
-                                <option value="" disabled selected>Выберите лабу</option>
-                            </select>
-                        </div>
+                        <p class="mb-3">Вы хотите встать в очередь на лабу: <span id="joinLabName" class="fw-bold"></span></p>
+                        <input type="hidden" name="work_id" id="joinWorkId">
                         <div class="d-grid gap-2">
                             <button type="submit" class="btn btn-custom">Подтвердить</button>
                             <button type="button" class="btn btn-custom-secondary" onclick="closeJoinModal()">Отмена</button>
@@ -234,11 +230,9 @@
 
     <script>
         // Функции для модальных окон
-        async function openJoinModal(workId, defaultLabName, availableWorks, isFromSubjects = false) {
-            console.log('openJoinModal called with:', {workId, defaultLabName, availableWorks, isFromSubjects});
+        async function openJoinModal(workId, labName, availableWorks, isFromSubjects = false) {
+            console.log('openJoinModal called with:', {workId, labName, availableWorks, isFromSubjects});
             document.getElementById('joinModal').style.display = 'block';
-            const select = document.getElementById('joinWorkId');
-            select.innerHTML = '<option value="" disabled selected>Выберите лабу</option>';
             
             if (!availableWorks || availableWorks.trim() === '') {
                 showToast('Нет доступных лабораторных работ для записи.', 3000);
@@ -246,34 +240,9 @@
                 return;
             }
 
-            const works = availableWorks.split(',').map(workStr => {
-                const parts = workStr.split('|').map(s => s.trim());
-                if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
-                    return { id: parts[0], name: `${parts[1]} | ${parts[2]}` };
-                }
-                return null;
-            }).filter(Boolean);
-
-            console.log('Parsed works:', works);
-            if (works.length === 0) {
-                showToast('Нет доступных лабораторных работ для записи.', 3000);
-                closeJoinModal();
-                return;
-            }
-
-            works.forEach((work, idx) => {
-                const option = document.createElement('option');
-                option.value = work.id;
-                option.text = work.name;
-                // Если открываем из "Мои предметы", выбираем конкретную лабу
-                // Иначе выбираем первую лабу из списка
-                if ((isFromSubjects && work.id === workId.toString()) || (!isFromSubjects && idx === 0)) {
-                    option.selected = true;
-                }
-                select.appendChild(option);
-            });
-            
-            document.getElementById('joinForm').action = "{% url 'join_queue' 0 %}".replace('0', isFromSubjects ? workId : works[0].id);
+            document.getElementById('joinLabName').textContent = labName;
+            document.getElementById('joinWorkId').value = workId;
+            document.getElementById('joinForm').action = "{% url 'join_queue' 0 %}".replace('0', workId);
         }
     
         function closeJoinModal() {
@@ -318,6 +287,51 @@
             }, duration);
         }
     
+        function fetchCabinetSection(section, workId = null) {
+            const url = '/cabinet/?section=' + section + (workId ? '&work_id=' + workId : '');
+            fetch(url, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.text())
+            .then(html => {
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = html;
+
+                if (section === 'subjects') {
+                    const subjectsSection = document.getElementById('subjects-section');
+                    if (subjectsSection) {
+                        if (workId) {
+                            // Обновляем только конкретную работу
+                            const workItem = subjectsSection.querySelector(`.work-item[data-work-id="${workId}"]`);
+                            const newWorkItem = tempDiv.querySelector(`.work-item[data-work-id="${workId}"]`);
+                            if (workItem && newWorkItem) {
+                                workItem.outerHTML = newWorkItem.outerHTML;
+                            }
+                        } else {
+                            // Обновляем весь раздел предметов
+                            subjectsSection.innerHTML = tempDiv.innerHTML;
+                        }
+                    }
+                } else if (section === 'queues') {
+                    const userQueues = document.getElementById('user-queues');
+                    if (userQueues) {
+                        userQueues.innerHTML = tempDiv.innerHTML;
+                    }
+                } else if (section === 'queue-cards') {
+                    const queueCards = document.getElementById('queue-cards');
+                    if (queueCards) {
+                        queueCards.innerHTML = tempDiv.innerHTML;
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('Ошибка при обновлении данных: ' + error.message, 3000);
+            });
+        }
+
         document.addEventListener('submit', function(e) {
             const form = e.target;
             if (form.classList.contains('mark-served-form') || 
@@ -350,21 +364,11 @@
                             const workId = form.dataset.workId;
                             fetchCabinetSection('subjects', workId);
                             fetchCabinetSection('queue-cards');
-                        } else if (form.querySelector('.join-submit-btn')) {
+                        } else {
                             fetchCabinetSection('queues');
                             fetchCabinetSection('subjects');
                             fetchCabinetSection('queue-cards');
-                            showToast(data.message || 'Вы успешно встали в очередь', 3000);
-                        } else if (form.querySelector('.leave-submit-btn')) {
-                            fetchCabinetSection('queues');
-                            fetchCabinetSection('subjects');
-                            fetchCabinetSection('queue-cards');
-                            showToast(data.message || 'Вы успешно вышли из очереди', 3000);
-                        } else if (form.id === 'joinForm') {
-                            fetchCabinetSection('queues');
-                            fetchCabinetSection('subjects');
-                            fetchCabinetSection('queue-cards');
-                            showToast(data.message || 'Вы успешно встали в очередь', 3000);
+                            showToast(data.message || 'Операция выполнена успешно', 3000);
                         }
                         closeJoinModal();
                         closeLeaveModal();
@@ -378,44 +382,5 @@
                 });
             }
         });
-    
-        function fetchCabinetSection(section, workId = null) {
-            const url = '/cabinet/?section=' + section + (workId ? '&work_id=' + workId : '');
-            fetch(url, {
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-            .then(response => response.text())
-            .then(html => {
-                if (section === 'subjects' && workId) {
-                    const workItem = document.querySelector(`.work-item[data-work-id="${workId}"]`);
-                    if (workItem) {
-                        const tempDiv = document.createElement('div');
-                        tempDiv.innerHTML = html;
-                        const newWorkItem = tempDiv.querySelector('.work-item') || tempDiv;
-                        workItem.innerHTML = newWorkItem.innerHTML;
-                    }
-                } else if (section === 'subjects') {
-                    const subjectsSection = document.getElementById('subjects-section');
-                    if (subjectsSection) {
-                        subjectsSection.innerHTML = html;
-                    }
-                } else if (section === 'queues') {
-                    const userQueues = document.getElementById('user-queues');
-                    if (userQueues) {
-                        userQueues.innerHTML = html;
-                    }
-                } else if (section === 'queue-cards') {
-                    const queueCards = document.getElementById('queue-cards');
-                    if (queueCards) {
-                        queueCards.innerHTML = html;
-                    }
-                }
-            })
-            .catch(error => {
-                alert('Ошибка при загрузке: ' + error);
-            });
-        }
     </script>
 {% endblock %}

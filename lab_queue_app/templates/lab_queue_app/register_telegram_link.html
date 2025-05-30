@@ -18,6 +18,10 @@
             <div id="status-message" class="alert alert-success" style="display: none;">
                 <i class="fas fa-check-circle"></i> Telegram успешно привязан! Перенаправляем...
             </div>
+            <div id="error-message" class="alert alert-danger" style="display: none;">
+                <i class="fas fa-exclamation-circle"></i> Ошибка при проверке статуса. 
+                <a href="javascript:void(0)" onclick="retryCheck()">Попробовать снова</a>
+            </div>
             <div class="help-text">
                 <p><small>После привязки Telegram вернитесь на эту страницу. Она обновится автоматически.</small></p>
             </div>
@@ -26,6 +30,7 @@
         <p>Код подтверждения отправлен на ваш email. Пожалуйста, проверьте почту.</p>
         <a href="{% url 'telegram_link_request' %}" class="btn btn-primary">Вернуться к вводу кода</a>
     {% endif %}
+    
     <form method="post" action="{% url 'user_settings' %}" class="mt-3">
         {% csrf_token %}
         <button type="submit" class="btn btn-secondary">Вернуться к настройкам</button>
@@ -58,34 +63,95 @@
             border-color: #c3e6cb;
             color: #155724;
         }
+        .alert-danger {
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
     </style>
 
     <script>
-        {% if deep_link %}
-            function checkTelegramBind() {
-                fetch("{% url 'check_telegram_bind' %}", {
-                    method: "GET",
-                    headers: {
-                        "X-Requested-With": "XMLHttpRequest"
+        document.addEventListener('DOMContentLoaded', function() {
+            {% if deep_link %}
+                let checkInterval;
+                let retryCount = 0;
+                const maxRetries = 10; // Увеличиваем количество попыток
+                const baseDelay = 2000; // Уменьшаем базовую задержку
+                const maxDelay = 5000; // Уменьшаем максимальную задержку
+
+                function getCookie(name) {
+                    let cookieValue = null;
+                    if (document.cookie && document.cookie !== '') {
+                        const cookies = document.cookie.split(';');
+                        for (let i = 0; i < cookies.length; i++) {
+                            const cookie = cookies[i].trim();
+                            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                                break;
+                            }
+                        }
                     }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.is_bound) {
-                        document.getElementById("status-message").style.display = "block";
-                        setTimeout(() => {
-                            window.location.href = "{% url 'user_settings' %}";
-                        }, 2000);
-                    } else {
-                        setTimeout(checkTelegramBind, 3000);
+                    return cookieValue;
+                }
+
+                function showError() {
+                    document.getElementById('error-message').style.display = 'block';
+                    document.getElementById('status-message').style.display = 'none';
+                }
+
+                function hideError() {
+                    document.getElementById('error-message').style.display = 'none';
+                }
+
+                function calculateDelay() {
+                    return Math.min(baseDelay * Math.pow(1.5, retryCount), maxDelay);
+                }
+
+                async function checkTelegramBind() {
+                    try {
+                        const response = await fetch("{% url 'check_telegram_bind' %}", {
+                            method: "GET",
+                            headers: {
+                                "X-Requested-With": "XMLHttpRequest",
+                                "X-CSRFToken": getCookie('csrftoken')
+                            }
+                        });
+
+                        if (!response.ok) throw new Error('Network response was not ok');
+                        
+                        const data = await response.json();
+                        
+                        if (data.is_bound) {
+                            hideError();
+                            document.getElementById('status-message').style.display = 'block';
+                            setTimeout(() => {
+                                window.location.href = "{% url 'user_settings' %}";
+                            }, 5000);
+                        } else {
+                            retryCount++;
+                            if (retryCount >= maxRetries) {
+                                showError();
+                            } else {
+                                setTimeout(checkTelegramBind, calculateDelay());
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error checking binding status:', error);
+                        showError();
                     }
-                })
-                .catch(error => {
-                    console.error("Ошибка проверки привязки:", error);
-                    setTimeout(checkTelegramBind, 3000);
-                });
-            }
-            checkTelegramBind();
-        {% endif %}
+                }
+
+                function retryCheck() {
+                    hideError();
+                    retryCount = 0;
+                    checkTelegramBind();
+                }
+
+                // Скрываем сообщения об ошибках при загрузке
+                hideError();
+                // Начинаем проверку при загрузке страницы
+                checkTelegramBind();
+            {% endif %}
+        });
     </script>
 {% endblock %}

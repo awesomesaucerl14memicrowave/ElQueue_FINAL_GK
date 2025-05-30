@@ -33,6 +33,7 @@ urlpatterns = [
     path('settings/telegram-link-verify/', views.telegram_link_verify, name='telegram_link_verify'),
     path('settings/telegram-unlink-request/', views.telegram_unlink_request, name='telegram_unlink_request'),
     path('settings/telegram-unlink-verify/', views.telegram_unlink_verify, name='telegram_unlink_verify'),
+    path('settings/register-telegram-link/', views.register_telegram_link, name='register_telegram_link'),
     path('check-username/', views.check_username, name='check_username'),
     path('check-email/', views.check_email, name='check_email'),
     path('queue-updates/', views.get_queue_updates, name='queue_updates'),
